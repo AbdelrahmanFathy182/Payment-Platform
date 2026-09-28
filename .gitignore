@@ -1,0 +1,26 @@
+# Build output
+target/
+
+# Secrets and local config
+.env
+*.env.local
+
+# Docker local data (only if you use bind mounts instead of named volumes)
+pgdata/
+*-data/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
