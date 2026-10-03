@@ -40,7 +40,12 @@ CREATE TABLE
             AND reverses_transaction_id IS NULL
         ),
         UNIQUE (id, currency),
-        FOREIGN KEY (reverses_transaction_id, currency) REFERENCES transactions (id, currency)
+        FOREIGN KEY (reverses_transaction_id, currency) REFERENCES transactions (id, currency),
+        CHECK (
+            reverses_transaction_id IS DISTINCT
+            FROM
+                id
+        )
     );
 
 CREATE TABLE
@@ -67,3 +72,5 @@ CREATE TABLE
         FOREIGN KEY (account_id, currency) REFERENCES accounts (id, currency),
         FOREIGN KEY (transaction_id, currency) REFERENCES transactions (id, currency)
     );
+
+CREATE INDEX entries_transaction_id_idx ON entries (transaction_id);
