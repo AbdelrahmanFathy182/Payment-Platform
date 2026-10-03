@@ -20,7 +20,7 @@ CREATE TABLE
 CREATE TABLE
     transactions (
         id UUID PRIMARY KEY,
-        reverses_transaction_id UUID references transactions (id) UNIQUE,
+        reverses_transaction_id UUID UNIQUE,
         type VARCHAR(20) CHECK (
             type IN (
                 'TOPUP',
@@ -39,13 +39,14 @@ CREATE TABLE
             OR type != 'REVERSAL'
             AND reverses_transaction_id IS NULL
         ),
-        UNIQUE (id, currency)
+        UNIQUE (id, currency),
+        FOREIGN KEY (reverses_transaction_id, currency) REFERENCES transactions (id, currency)
     );
 
 CREATE TABLE
     entries (
         id UUID PRIMARY KEY,
-        account_id UUID NOT NULL ,
+        account_id UUID NOT NULL,
         transaction_id UUID NOT NULL,
         credits BIGINT,
         debits BIGINT,
@@ -60,10 +61,9 @@ CREATE TABLE
             OR (
                 debits IS NOT NULL
                 AND debits > 0
-               AND credits IS NULL
+                AND credits IS NULL
             )
         ),
         FOREIGN KEY (account_id, currency) REFERENCES accounts (id, currency),
         FOREIGN KEY (transaction_id, currency) REFERENCES transactions (id, currency)
-    
     );

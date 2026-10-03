@@ -1,8 +1,8 @@
 CREATE FUNCTION reject_ledger_modification() RETURNS trigger AS $$    
-BEGIN
+BEGIN RAISE EXCEPTION '% is not allowed on table "%": ledger tables are immutable',
+TG_OP,
+TG_TABLE_NAME;
 
-    RAISE EXCEPTION '% is not allowed on table "%": ledger tables are immutable',
-        TG_OP, TG_TABLE_NAME;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -40,15 +40,26 @@ EXECUTE FUNCTION reject_ledger_modification();
 
 CREATE FUNCTION guard_account_update() RETURNS trigger AS $$
 BEGIN
-    IF NEW.id         IS DISTINCT FROM OLD.id
-    OR NEW.name       IS DISTINCT FROM OLD.name
-    OR NEW.type       IS DISTINCT FROM OLD.type
-    OR NEW.currency   IS DISTINCT FROM OLD.currency
-    OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
-        RAISE EXCEPTION 'Only "status" may be changed on table "%"', TG_TABLE_NAME;
-    END IF;
+IF NEW.id IS DISTINCT
+FROM
+    OLD.id
+    OR NEW.name IS DISTINCT
+FROM
+    OLD.name
+    OR NEW.type IS DISTINCT
+FROM
+    OLD.type
+    OR NEW.currency IS DISTINCT
+FROM
+    OLD.currency
+    OR NEW.created_at IS DISTINCT
+FROM
+    OLD.created_at THEN RAISE EXCEPTION 'Only "status" may be changed on table "%"',
+    TG_TABLE_NAME;
 
-    RETURN NEW;
+END IF;
+
+RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 

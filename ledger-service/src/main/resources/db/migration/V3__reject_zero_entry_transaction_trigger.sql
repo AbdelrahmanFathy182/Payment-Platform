@@ -1,9 +1,18 @@
 CREATE FUNCTION check_transaction_entry_not_zero() RETURNS trigger AS $$    
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM entries WHERE transaction_id = NEW.id) THEN
-        RAISE EXCEPTION 'Transaction % has no entries', NEW.id;
-    END IF;
-    RETURN NULL;
+BEGIN IF NOT EXISTS (
+    SELECT
+        1
+    FROM
+        entries
+    WHERE
+        transaction_id = NEW.id
+) THEN RAISE EXCEPTION 'Transaction % has no entries',
+NEW.id;
+
+END IF;
+
+RETURN NULL;
+
 END;
 $$ LANGUAGE plpgsql;
 
