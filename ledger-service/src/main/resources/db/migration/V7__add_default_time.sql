@@ -1,0 +1,3 @@
+ALTER TABLE accounts ALTER COLUMN created_at SET DEFAULT NOW();
+ALTER TABLE transactions ALTER COLUMN created_at SET DEFAULT NOW();
+ALTER TABLE entries ALTER COLUMN created_at SET DEFAULT NOW();

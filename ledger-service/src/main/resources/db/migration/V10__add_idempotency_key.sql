@@ -1,0 +1,1 @@
+alter table transactions add column idempotency_hash varchar(64);
