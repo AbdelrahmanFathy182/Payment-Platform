@@ -5,8 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.UUID;
 
-public class AccountsTests extends DatabaseSetup {
-        
+public class DatabaseTests extends DatabaseSetup {
 
         @Test
         public void seedAccountsExist() {
@@ -17,8 +16,6 @@ public class AccountsTests extends DatabaseSetup {
                                 "SELECT COUNT(*) FROM accounts WHERE id = ? AND name = 'revenue:fees' AND type = 'revenue' AND status = 'active'",
                                 Integer.class, UUID.fromString("00000000-0000-0000-0000-000000000002")));
         }
-
-        
 
         @Test
         public void testValidTransactionInserted() {
@@ -103,7 +100,6 @@ public class AccountsTests extends DatabaseSetup {
                 assertEquals("inactive", jdbcTemplate.queryForObject(
                                 "SELECT status FROM accounts WHERE id = ?", String.class, id));
         }
-
 
         @Test
         public void appUserCannotChangeAccountName() {
@@ -282,6 +278,55 @@ public class AccountsTests extends DatabaseSetup {
 
                 assertEquals(1, jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, txId));
+        }
+
+        @Test
+        public void testAccountDeleteRejected() {
+                UUID test = createAccount("liability");
+                Exception e = assertThrows(Exception.class,
+                                () -> jdbcTemplate.update("Delete from accounts where id =? ", test));
+                System.out.print(e);
+                assertEquals(1, jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM accounts WHERE id = ?", Integer.class, test));
+
+        }
+
+        @Test
+        public void testAccountDeleteByOwnerRejected() {
+                UUID test = createAccount("liability");
+
+                Exception e = assertThrows(Exception.class,
+                                () -> ownerJdbc().update("Delete from accounts where id =? ", test));
+                System.out.print(e);
+                assertEquals(1, jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM accounts WHERE id = ?", Integer.class, test));
+        }
+
+        @Test
+        public void testAccountsCannotBeTruncated() {
+                JdbcTemplate owner = ownerJdbc();
+                Exception e = assertThrows(Exception.class, () -> owner.update("TRUNCATE TABLE entries, accounts"));
+                System.out.print(e);
+        }
+
+        @Test
+        public void testInactiveAccountCannotReceiveTransactions() {
+                UUID a = createAccount("liability");
+                UUID b = createAccount("liability");
+                UUID tUuid = UUID.randomUUID();
+                jdbcTemplate.queryForList(
+                                "SELECT t.tgname, t.tgenabled, pg_get_functiondef(t.tgfoid) AS body " +
+                                                "FROM pg_trigger t WHERE t.tgrelid = 'entries'::regclass AND NOT t.tgisinternal")
+                                .forEach(System.out::println);
+                jdbcTemplate.update("UPDATE accounts set status = 'inactive' where id = ? ", a);
+
+                Exception e = assertThrows(Exception.class, () -> tx.executeWithoutResult(status -> {
+                        insertPayment(tUuid, a, b, 100);
+                }));
+                System.out.print(e);
+                assertEquals(0, jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, tUuid));
+
         }
 
 }
