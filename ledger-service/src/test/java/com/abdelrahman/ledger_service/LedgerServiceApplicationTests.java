@@ -1,13 +1,10 @@
 package com.abdelrahman.ledger_service;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class LedgerServiceApplicationTests {
+class LedgerServiceApplicationTests extends DatabaseSetup {
 
-	@Test
-	void contextLoads() {
-	}
-
+    @Test
+    void contextLoads() {
+    }
 }
