@@ -10,6 +10,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import java.lang.String;
 
 @SpringBootTest
 public abstract class DatabaseSetup {
@@ -32,7 +33,6 @@ public abstract class DatabaseSetup {
         registry.add("spring.flyway.password", () -> "flyway_pass");
     }
 
-
     @Autowired
     protected JdbcTemplate jdbcTemplate;
     @Autowired
@@ -51,10 +51,22 @@ public abstract class DatabaseSetup {
      * helper method to insert a payment transaction with entries, must be called
      * within a transaction
      */
-    protected void insertPayment(UUID txId, UUID debitAccount, UUID creditAccount, long amount) {
+    protected void insertPayment(UUID txId, UUID debitAccount, UUID creditAccount, long amount, String typeString) {
         jdbcTemplate.update(
-                "INSERT INTO transactions (id, type, currency, idempotency_key) VALUES (?, 'PAYMENT', 'EGP', ?)",
-                txId, UUID.randomUUID().toString());
+                "INSERT INTO transactions (id, type, currency, idempotency_key) VALUES (?, ?, 'EGP', ?)",
+                txId, typeString, UUID.randomUUID().toString());
+        jdbcTemplate.update(
+                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
+                UUID.randomUUID(), debitAccount, txId, amount);
+        jdbcTemplate.update(
+                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')",
+                UUID.randomUUID(), creditAccount, txId, amount);
+    }
+
+    protected void insertReversal(UUID txId, UUID debitAccount, UUID creditAccount, long amount, UUID reversesID) {
+        jdbcTemplate.update(
+                "INSERT INTO transactions (id, type, currency, idempotency_key,reverses_transaction_id) VALUES (?, ?, 'EGP', ?,?)",
+                txId, "REVERSAL", UUID.randomUUID().toString(), reversesID);
         jdbcTemplate.update(
                 "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
                 UUID.randomUUID(), debitAccount, txId, amount);
@@ -70,6 +82,17 @@ public abstract class DatabaseSetup {
                 "INSERT INTO accounts (id, name, type, currency, status) VALUES (?, ?, ?, ?, 'active')",
                 id, "test:" + id, type, "EGP");
         return id;
+    }
+
+    /**
+     * Inserts one entry line. side must be "debits" or "credits". Call inside a
+     * transaction.
+     */
+    protected void insertEntry(UUID txId, UUID accountId, String side, long amount) {
+        String sql = side.equals("debits")
+                ? "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')"
+                : "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')";
+        jdbcTemplate.update(sql, UUID.randomUUID(), accountId, txId, amount);
     }
 
 }

@@ -139,7 +139,7 @@ public class DatabaseTests extends DatabaseSetup {
                 UUID txId = UUID.randomUUID();
 
                 // commit 1: a normal, valid payment
-                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100));
+                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100, "PAYMENT"));
 
                 // commit 2: try to add one more balanced pair to the now-sealed transaction
                 assertThrows(Exception.class, () -> tx.executeWithoutResult(s -> {
@@ -163,7 +163,7 @@ public class DatabaseTests extends DatabaseSetup {
                 JdbcTemplate owner = ownerJdbc();
 
                 // commit 1: a normal, valid payment
-                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100));
+                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100, "PAYMENT"));
 
                 // commit 2: try to remove all of the entries from the now-sealed transaction
                 assertThrows(Exception.class, () -> owner.update(
@@ -183,7 +183,7 @@ public class DatabaseTests extends DatabaseSetup {
                 JdbcTemplate owner = ownerJdbc();
 
                 // commit 1: a normal, valid payment
-                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100));
+                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100, "PAYMENT"));
 
                 // commit 2: try to update one of the entries from the now-sealed transaction
                 assertThrows(Exception.class, () -> owner.update(
@@ -206,7 +206,7 @@ public class DatabaseTests extends DatabaseSetup {
                 JdbcTemplate owner = ownerJdbc();
 
                 // commit 1: a normal, valid payment
-                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100));
+                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100, "PAYMENT"));
 
                 // commit 2: try to update the transaction from the now-sealed transaction
                 assertThrows(Exception.class, () -> owner.update(
@@ -227,7 +227,7 @@ public class DatabaseTests extends DatabaseSetup {
                 JdbcTemplate owner = ownerJdbc();
 
                 // commit 1: a normal, valid payment
-                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100));
+                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100, "PAYMENT"));
 
                 // commit 2: try to delete the transaction from the now-sealed transaction
                 assertThrows(Exception.class, () -> owner.update(
@@ -248,7 +248,7 @@ public class DatabaseTests extends DatabaseSetup {
                 JdbcTemplate owner = ownerJdbc();
 
                 // commit 1: a normal, valid payment
-                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100));
+                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100, "PAYMENT"));
 
                 // entries: nothing references it, so only the trigger can stop this
                 assertThrows(Exception.class, () -> owner.update("TRUNCATE TABLE entries"));
@@ -267,7 +267,7 @@ public class DatabaseTests extends DatabaseSetup {
                 JdbcTemplate owner = ownerJdbc();
 
                 // commit 1: a normal, valid payment
-                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100));
+                tx.executeWithoutResult(s -> insertPayment(txId, a, b, 100, "PAYMENT"));
 
                 // entries: nothing references it, so only the trigger can stop this
                 assertThrows(Exception.class, () -> owner.update("TRUNCATE TABLE entries, transactions"));
@@ -321,12 +321,192 @@ public class DatabaseTests extends DatabaseSetup {
                 jdbcTemplate.update("UPDATE accounts set status = 'inactive' where id = ? ", a);
 
                 Exception e = assertThrows(Exception.class, () -> tx.executeWithoutResult(status -> {
-                        insertPayment(tUuid, a, b, 100);
+                        insertPayment(tUuid, a, b, 100, "PAYMENT");
                 }));
                 System.out.print(e);
                 assertEquals(0, jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, tUuid));
 
+        }
+
+        @Test
+        public void testReverseTransaction() {
+                UUID accountA = createAccount("liability");
+                UUID accountB = createAccount("liability");
+                UUID txn = UUID.randomUUID();
+                UUID reversetxn = UUID.randomUUID();
+
+                tx.executeWithoutResult(status -> {
+                        insertPayment(txn, accountA, accountB, 100, "PAYMENT");
+                });
+
+                tx.executeWithoutResult(status -> {
+                        insertReversal(reversetxn, accountB, accountA, 100, txn);
+                });
+
+                assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions where id = ?",
+                                Integer.class, txn));
+
+                assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions where id = ?",
+                                Integer.class, reversetxn));
+
+                assertEquals(txn, jdbcTemplate.queryForObject(
+                                "SELECT reverses_transaction_id FROM transactions WHERE id = ?", UUID.class,
+                                reversetxn));
+
+                assertEquals("REVERSAL", jdbcTemplate.queryForObject(
+                                "SELECT type FROM transactions WHERE id = ?", String.class, reversetxn));
+
+        }
+
+        @Test
+        public void testReverseWith3Entries() {
+                UUID accountA = createAccount("liability");
+                UUID accountB = createAccount("liability");
+                UUID txn = UUID.randomUUID();
+                UUID reversetxn = UUID.randomUUID();
+
+                tx.executeWithoutResult(status -> {
+                        jdbcTemplate.update(
+                                        "INSERT INTO transactions (id, type, currency, idempotency_key) VALUES (?, ?, 'EGP', ?)",
+                                        txn, "PAYMENT", UUID.randomUUID().toString());
+                        jdbcTemplate.update(
+                                        "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
+                                        UUID.randomUUID(), accountA, txn, 200);
+                        jdbcTemplate.update(
+                                        "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')",
+                                        UUID.randomUUID(), accountB, txn, 100);
+                        jdbcTemplate.update(
+                                        "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')",
+                                        UUID.randomUUID(), accountB, txn, 100);
+                });
+                assertEquals(3, jdbcTemplate.queryForObject("Select COUNT(*) from entries where transaction_id = ?",
+                                Integer.class, txn));
+
+                tx.executeWithoutResult(status -> {
+                        jdbcTemplate.update(
+                                        "INSERT INTO transactions (id, type, currency, idempotency_key,reverses_transaction_id) VALUES (?, ?, 'EGP', ?,?)",
+                                        reversetxn, "REVERSAL", UUID.randomUUID().toString(), txn);
+                        jdbcTemplate.update(
+                                        "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')",
+                                        UUID.randomUUID(), accountA, reversetxn, 200);
+                        jdbcTemplate.update(
+                                        "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
+                                        UUID.randomUUID(), accountB, reversetxn, 100);
+                        jdbcTemplate.update(
+                                        "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
+                                        UUID.randomUUID(), accountB, reversetxn, 100);
+                });
+                assertEquals(3, jdbcTemplate.queryForObject("Select COUNT(*) from entries where transaction_id = ?",
+                                Integer.class, reversetxn));
+
+        }
+
+        @Test
+        public void testReversalWithDiffAmount() {
+
+                UUID accountA = createAccount("liability");
+                UUID accountB = createAccount("liability");
+                UUID txn = UUID.randomUUID();
+                UUID reversetxn = UUID.randomUUID();
+
+                tx.executeWithoutResult(status -> {
+                        insertPayment(txn, accountA, accountB, 100, "PAYMENT");
+                });
+
+                Exception e = assertThrows(Exception.class, () -> {
+                        tx.executeWithoutResult(status -> {
+                                insertReversal(reversetxn, accountB, accountA, 200, txn);
+                        });
+                });
+                System.out.print(e);
+                assertEquals(0, jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, reversetxn));
+        }
+
+        @Test
+        public void testReversalWithoutreversing() {
+
+                UUID accountA = createAccount("liability");
+                UUID accountB = createAccount("liability");
+                UUID txn = UUID.randomUUID();
+                UUID reversetxn = UUID.randomUUID();
+
+                tx.executeWithoutResult(status -> {
+                        insertPayment(txn, accountA, accountB, 100, "PAYMENT");
+                });
+
+                Exception e = assertThrows(Exception.class, () -> {
+                        tx.executeWithoutResult(status -> {
+                                insertReversal(reversetxn, accountA, accountB, 100, txn);
+                        });
+                });
+                System.out.print(e);
+                assertEquals(0, jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, reversetxn));
+        }
+
+        @Test
+        public void testReversalWithWrongAccount() {
+
+                UUID accountA = createAccount("liability");
+                UUID accountB = createAccount("liability");
+                UUID accountC = createAccount("liability");
+
+                UUID txn = UUID.randomUUID();
+                UUID reversetxn = UUID.randomUUID();
+
+                tx.executeWithoutResult(status -> {
+                        insertPayment(txn, accountA, accountB, 100, "PAYMENT");
+                });
+
+                Exception e = assertThrows(Exception.class, () -> {
+                        tx.executeWithoutResult(status -> {
+                                insertReversal(reversetxn, accountC, accountA, 100, txn);
+                        });
+                });
+                System.out.print(e);
+                assertEquals(0, jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, reversetxn));
+        }
+
+        @Test
+        public void reversalWithWrongRepeatCountsIsRejected() {
+                UUID a = createAccount("liability");
+                UUID b = createAccount("liability");
+                UUID c = createAccount("liability");
+                UUID txn = UUID.randomUUID();
+                UUID reversetxn = UUID.randomUUID();
+
+                // original: debit A, debit A, debit B, credit C x3
+                tx.executeWithoutResult(s -> {
+                        jdbcTemplate.update(
+                                        "INSERT INTO transactions (id, type, currency, idempotency_key) VALUES (?, 'PAYMENT', 'EGP', ?)",
+                                        txn, UUID.randomUUID().toString());
+                        insertEntry(txn, a, "debits", 100);
+                        insertEntry(txn, a, "debits", 100);
+                        insertEntry(txn, b, "debits", 100);
+                        insertEntry(txn, c, "credits", 100);
+                        insertEntry(txn, c, "credits", 100);
+                        insertEntry(txn, c, "credits", 100);
+                });
+
+                // bad reversal: credit A once, credit B twice, debit C x3 (balanced, same line
+                // count)
+                assertThrows(Exception.class, () -> tx.executeWithoutResult(s -> {
+                        jdbcTemplate.update(
+                                        "INSERT INTO transactions (id, type, currency, idempotency_key, reverses_transaction_id) VALUES (?, 'REVERSAL', 'EGP', ?, ?)",
+                                        reversetxn, UUID.randomUUID().toString(), txn);
+                        insertEntry(reversetxn, a, "credits", 100);
+                        insertEntry(reversetxn, b, "credits", 100);
+                        insertEntry(reversetxn, b, "credits", 100);
+                        insertEntry(reversetxn, c, "debits", 100);
+                        insertEntry(reversetxn, c, "debits", 100);
+                        insertEntry(reversetxn, c, "debits", 100);
+                }));
+
+                assertEquals(0, jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, reversetxn));
         }
 
 }
