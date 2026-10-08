@@ -1,4 +1,4 @@
-package com.abdelrahman.ledger_service;
+package com.abdelrahman.ledger_service.database;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;

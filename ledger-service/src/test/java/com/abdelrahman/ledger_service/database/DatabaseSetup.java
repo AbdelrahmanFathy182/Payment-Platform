@@ -1,4 +1,4 @@
-package com.abdelrahman.ledger_service;
+package com.abdelrahman.ledger_service.database;
 
 import java.util.UUID;
 
