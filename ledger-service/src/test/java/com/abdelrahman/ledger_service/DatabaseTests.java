@@ -67,7 +67,6 @@ public class DatabaseTests extends DatabaseSetup {
                                 "SELECT COUNT(*) FROM entries WHERE transaction_id = ?", Integer.class,
                                 transaction_id));
 
-                System.out.println("Exception message: " + exception.getMessage());
 
         }
 
@@ -84,8 +83,6 @@ public class DatabaseTests extends DatabaseSetup {
                 });
                 assertEquals(0, jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, transaction_id));
-                System.out.println("Exception message: " + exception.getMessage());
-
         }
 
         @Test
@@ -107,7 +104,6 @@ public class DatabaseTests extends DatabaseSetup {
                 Exception exception = assertThrows(Exception.class, () -> {
                         jdbcTemplate.update("UPDATE accounts SET name = ? WHERE id = ?", "new-name", id);
                 });
-                System.out.println("Exception message: " + exception.getMessage());
                 assertEquals("test:" + id, jdbcTemplate.queryForObject(
                                 "SELECT name FROM accounts WHERE id = ?", String.class, id));
         }
@@ -507,6 +503,79 @@ public class DatabaseTests extends DatabaseSetup {
 
                 assertEquals(0, jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, reversetxn));
+        }
+
+        @Test
+        public void testAllowReversalOnInactiveAccounts() {
+                UUID accountA = createAccount("liability");
+                UUID accountB = createAccount("liability");
+                UUID txn = UUID.randomUUID();
+                UUID reversetxn = UUID.randomUUID();
+
+                tx.executeWithoutResult(status -> {
+                        insertPayment(txn, accountA, accountB, 100, "PAYMENT");
+                });
+
+                jdbcTemplate.update("UPDATE accounts set status = 'inactive' where id = ? ", accountA);
+
+                tx.executeWithoutResult(status -> {
+                        insertReversal(reversetxn, accountB, accountA, 100, txn);
+                });
+
+                assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions where id = ?",
+                                Integer.class, txn));
+
+                assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions where id = ?",
+                                Integer.class, reversetxn));
+
+                assertEquals(txn, jdbcTemplate.queryForObject(
+                                "SELECT reverses_transaction_id FROM transactions WHERE id = ?", UUID.class,
+                                reversetxn));
+
+                assertEquals("REVERSAL", jdbcTemplate.queryForObject(
+                                "SELECT type FROM transactions WHERE id = ?", String.class, reversetxn));
+
+        }
+
+        @Test
+        public void testReverseReversalTransaction() {
+                UUID accountA = createAccount("liability");
+                UUID accountB = createAccount("liability");
+                UUID txn = UUID.randomUUID();
+                UUID reversetxn = UUID.randomUUID();
+                UUID reverseReversaltxn = UUID.randomUUID();
+
+                tx.executeWithoutResult(status -> {
+                        insertPayment(txn, accountA, accountB, 100, "PAYMENT");
+                });
+
+                tx.executeWithoutResult(status -> {
+                        insertReversal(reversetxn, accountB, accountA, 100, txn);
+                });
+
+                tx.executeWithoutResult(status -> {
+                        insertReversal(reverseReversaltxn, accountA, accountB, 100, reversetxn);
+                });
+
+                assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions where id = ?",
+                                Integer.class, txn));
+
+                assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions where id = ?",
+                                Integer.class, reversetxn));
+
+                assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions where id = ?",
+                                Integer.class, reverseReversaltxn));
+
+        
+                assertEquals(reversetxn, jdbcTemplate.queryForObject(
+                                "SELECT reverses_transaction_id FROM transactions WHERE id = ?", UUID.class,
+                                reverseReversaltxn));
+
+                assertEquals("REVERSAL", jdbcTemplate.queryForObject(
+                                "SELECT type FROM transactions WHERE id = ?", String.class, reversetxn));
+
+                assertEquals("REVERSAL", jdbcTemplate.queryForObject(
+                                "SELECT type FROM transactions WHERE id = ?", String.class, reverseReversaltxn));
         }
 
 }
