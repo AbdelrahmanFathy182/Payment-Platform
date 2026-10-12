@@ -11,8 +11,8 @@ import java.util.UUID;
 
 class LedgerRepositoryTests extends LedgerDatabaseSetup {
 
-    @Autowired 
-    private  AccountRepository repository;
+    @Autowired
+    private AccountRepository repository;
 
     @Test
     void accountFound() {
@@ -22,6 +22,6 @@ class LedgerRepositoryTests extends LedgerDatabaseSetup {
 
     @Test
     void accountNotFound() {
-        assertFalse(repository.findByName("badAccount").isPresent());
+        assertFalse(repository.findByName("UnknownAccount").isPresent());
     }
 }
