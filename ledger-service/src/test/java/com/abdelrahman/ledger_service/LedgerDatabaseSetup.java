@@ -13,7 +13,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import java.lang.String;
 
 @SpringBootTest
-public abstract class DatabaseSetup {
+public abstract class LedgerDatabaseSetup {
 
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16")
             .withInitScript("postgres/init.sql");

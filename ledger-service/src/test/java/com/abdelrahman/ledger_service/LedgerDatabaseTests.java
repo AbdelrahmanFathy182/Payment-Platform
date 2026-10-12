@@ -6,7 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.UUID;
 
-public class DatabaseTests extends DatabaseSetup {
+public class LedgerDatabaseTests extends LedgerDatabaseSetup {
 
         @Test
         public void seedAccountsExist() {
