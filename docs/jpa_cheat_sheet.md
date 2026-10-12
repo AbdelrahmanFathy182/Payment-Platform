@@ -116,3 +116,135 @@ To see what the database really said, look at the cause chain: `getMostSpecificC
 5. The rest only when a feature needs it.
 
 Your `Entry` entity comes next after `Account`. For its `accountId` and `transactionId` fields, would you use plain `UUID` fields or `@ManyToOne` links, and what's your reason?
+
+
+These come from `extends JpaRepository<Account, UUID>`. Names are for your `Account` and its `UUID` id.
+
+**Save**
+
+| Method | What it does |
+|---|---|
+| `save(account)` | inserts a new row, or updates an existing one |
+| `saveAndFlush(account)` | same, and sends the SQL to the database immediately |
+| `saveAll(list)` | `save` for many at once |
+| `flush()` | sends any pending SQL now |
+
+**Find**
+
+| Method | Returns |
+|---|---|
+| `findById(id)` | `Optional<Account>` |
+| `findAll()` | `List<Account>` |
+| `findAllById(ids)` | `List<Account>` |
+| `getReferenceById(id)` | a lazy placeholder, which you rarely need |
+
+**Check and count**
+
+| Method | Returns |
+|---|---|
+| `existsById(id)` | `boolean` |
+| `count()` | `long` |
+
+**Delete (never use these in this project)**
+
+| Method |
+|---|
+| `deleteById(id)`, `delete(account)`, `deleteAll()`, `deleteAllById(ids)` |
+
+Your ledger is append-only. `ledger_service` has no `DELETE` permission, so the database would reject every one of these.
+
+**Sorting and paging (useful for the entries history)**
+
+| Method | What it does |
+|---|---|
+| `findAll(Sort)` | all rows, sorted |
+| `findAll(Pageable)` | one page of rows, returns `Page<Account>` |
+
+**For this project**
+- **Used now:** `saveAndFlush` and `findById` (change status).
+- **Used soon:** `findAll(Pageable)` can serve the entries history, though the entries will probably need their own query by account.
+- **Not built in:** anything by another field. You declare those yourself, like `findByName`.
+
+Your IDE shows the full list when you type `repository.`.
+
+
+
+Here are the ones Spring can generate from the method name, using your `Account` fields (`id`, `name`, `type`, `currency`, `status`, `createdAt`). You declare the line, and Spring writes the query.
+
+**Examples on `Account`**
+
+```java
+Optional<Account> findByName(String name);                        // WHERE name = ?
+boolean existsByName(String name);                                // is there one?
+List<Account> findByStatus(AccountStatus status);                 // WHERE status = ?
+List<Account> findByType(AccountType type);
+List<Account> findByTypeAndCurrency(AccountType type, AccountCurrency currency);
+List<Account> findByStatusOrderByCreatedAtDesc(AccountStatus status);
+List<Account> findByStatusIn(Collection<AccountStatus> statuses);
+List<Account> findByNameStartingWith(String prefix);              // name LIKE 'prefix%'
+List<Account> findByCreatedAtAfter(Instant time);
+long countByStatus(AccountStatus status);
+Optional<Account> findFirstByTypeOrderByCreatedAtAsc(AccountType type);
+Page<Account> findByStatus(AccountStatus status, Pageable pageable);
+```
+
+**What each part of a name means**
+
+| Part | Keywords |
+|---|---|
+| Start | `findBy`, `existsBy`, `countBy` (also `getBy`, `readBy`) |
+| Combine conditions | `And`, `Or` |
+| Compare | `Not`, `In`, `NotIn`, `IsNull`, `IsNotNull`, `True`, `False` |
+| Numbers and dates | `LessThan`, `GreaterThan`, `Between`, `After`, `Before` |
+| Text | `Like`, `StartingWith`, `EndingWith`, `Containing`, `IgnoreCase` |
+| Sorting | `OrderByFieldAsc`, `OrderByFieldDesc` |
+| Limit | `First`, `Top10` |
+
+**What the return type tells Spring**
+- `Optional<X>`: zero or one result.
+- `List<X>`: any number of results.
+- `boolean`: used with `existsBy`.
+- `long`: used with `countBy`.
+- `Page<X>`: one page of results, with a `Pageable` parameter.
+
+**Coming later for `Entry`** (a separate `EntryRepository`):
+```java
+List<Entry> findByTransactionId(UUID transactionId);
+List<Entry> findByAccountIdOrderByCreatedAtDesc(UUID accountId);   // entries history
+long countByTransactionId(UUID transactionId);
+```
+
+**Rules**
+- Every word after `By` must match a **Java field name**, or the app fails at startup.
+- Past two or three conditions, the name gets unreadable, so switch to `@Query`.
+- Anything that calculates, like your balance (`SUM`, `COALESCE`), can't be derived from a name, so it needs `@Query`.
+- Spring also understands `deleteBy...`, but never use it here, since the ledger is append-only.
+
+**For create account you need none of these** beyond `findByName`. Add the others when a feature asks for them.
+
+Which one would you declare to find every inactive account?
+
+No. `findBy` is the most common prefix, but Spring understands several, and each one decides what the method does.
+
+| Prefix | What it does | Returns | Example |
+|---|---|---|---|
+| `findBy` | fetches rows | `Optional<X>`, `List<X>`, `Page<X>` | `findByName(String name)` |
+| `existsBy` | asks "is there at least one?" | `boolean` | `existsByName(String name)` |
+| `countBy` | counts matching rows | `long` | `countByStatus(AccountStatus s)` |
+| `deleteBy` | deletes matching rows | `void` or `long` | `deleteByName(String name)` |
+
+**Synonyms for `findBy`.** `getBy`, `readBy`, `queryBy` and `searchBy` all do the same thing. Stick to `findBy`, which is the one everyone recognizes.
+
+**What follows the prefix works the same for all of them.** Everything after `By` is the condition (`Name`, `StatusAndType`, `CreatedAtAfter`, and so on), written with Java field names.
+
+**For this project:**
+- **Use:** `findBy`, `existsBy`, `countBy`.
+- **Never use `deleteBy`.** The ledger is append-only and `ledger_service` has no `DELETE` permission, so the database would reject it anyway.
+
+**Methods that aren't derived from a name.** A method with `@Query` above it can have any name you like, such as `creditMinusDebit` or `lockById`. Spring runs the SQL you wrote, and the name no longer matters. Your balance query and payer lock will be that kind.
+
+So there are two ways to get a method that isn't built in:
+1. A **derived** method, where the name starts with one of the prefixes above and Spring builds the query.
+2. A **`@Query`** method, where you write the SQL and choose the name.
+
+Which of the two would the balance calculation need, and why can't a method name express it?

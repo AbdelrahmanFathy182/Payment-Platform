@@ -1,7 +1,7 @@
 package com.abdelrahman.ledger_service.dto;
-import com.abdelrahman.ledger_service.domain.AccountCurrency;
-import com.abdelrahman.ledger_service.domain.AccountType;
-import com.abdelrahman.ledger_service.domain.AccountStatus;
+import com.abdelrahman.ledger_service.domain.accountEnums.AccountCurrency;
+import com.abdelrahman.ledger_service.domain.accountEnums.AccountStatus;
+import com.abdelrahman.ledger_service.domain.accountEnums.AccountType;
 import com.abdelrahman.ledger_service.domain.Account;
 
 

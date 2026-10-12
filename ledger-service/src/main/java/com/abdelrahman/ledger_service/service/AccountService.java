@@ -6,7 +6,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.abdelrahman.ledger_service.domain.Account;
-import com.abdelrahman.ledger_service.domain.AccountStatus;
+import com.abdelrahman.ledger_service.domain.accountEnums.AccountStatus;
 import com.abdelrahman.ledger_service.dto.CreateAccountRequest;
 import com.abdelrahman.ledger_service.exception.LedgerException;
 import com.abdelrahman.ledger_service.repository.AccountRepository;
@@ -32,7 +32,7 @@ public class AccountService {
 
     private Result insert(CreateAccountRequest request) {
         Account account = new Account(UUID.randomUUID(), request.name(),
-                request.type(), request.currency(), AccountStatus.active);
+                AccountStatus.active, request.type(), request.currency());
         try {
             return new Result(repository.saveAndFlush(account), true);
         } catch (DataIntegrityViolationException e) {
