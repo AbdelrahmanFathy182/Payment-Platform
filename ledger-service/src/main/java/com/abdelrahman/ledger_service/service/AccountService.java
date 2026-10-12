@@ -4,7 +4,7 @@ import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-
+import java.util.Optional;
 import com.abdelrahman.ledger_service.domain.Account;
 import com.abdelrahman.ledger_service.domain.accountEnums.AccountStatus;
 import com.abdelrahman.ledger_service.dto.CreateAccountRequest;
@@ -14,8 +14,12 @@ import com.abdelrahman.ledger_service.repository.AccountRepository;
 @Service
 public class AccountService {
 
-    /** The account, plus whether this call created it (true) or it already existed (false). */
-    public record Result(Account account, boolean created) {}
+    /**
+     * The account, plus whether this call created it (true) or it already existed
+     * (false).
+     */
+    public record Result(Account account, boolean created) {
+    }
 
     private final AccountRepository repository;
 
@@ -25,9 +29,12 @@ public class AccountService {
 
     // Deliberately NOT @Transactional. See the note below.
     public Result create(CreateAccountRequest request) {
-        return repository.findByName(request.name())
-                .map(existing -> sameAs(existing, request))
-                .orElseGet(() -> insert(request));
+        Optional<Account> found = repository.findByName(request.name());
+
+        if (found.isPresent()) {
+            return sameAs(found.get(), request); // name exists: compare
+        }
+        return insert(request); // name is new: create
     }
 
     private Result insert(CreateAccountRequest request) {

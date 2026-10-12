@@ -1,7 +1,8 @@
-package com.abdelrahman.ledger_service.database;
+package com.abdelrahman.ledger_service;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.UUID;
 
