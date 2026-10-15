@@ -47,7 +47,7 @@ public class LedgerDatabaseTests extends LedgerDatabaseSetup {
                 UUID accountA_id = createAccount("liability");
                 UUID accountB_id = createAccount("liability");
                 UUID transaction_id = UUID.randomUUID();
-                Exception exception = assertThrows(Exception.class, () -> {
+                assertThrows(Exception.class, () -> {
                         tx.executeWithoutResult(status -> {
                                 jdbcTemplate.update(
                                                 "insert  into transactions (id, reverses_transaction_id, type,currency,idempotency_key) values (?,?,?,?,?)",
@@ -74,7 +74,7 @@ public class LedgerDatabaseTests extends LedgerDatabaseSetup {
         @Test
         public void testTransactionWithoutEntriesIsRejected() {
                 UUID transaction_id = UUID.randomUUID();
-                Exception exception = assertThrows(Exception.class, () -> {
+                assertThrows(Exception.class, () -> {
                         tx.executeWithoutResult(status -> {
                                 jdbcTemplate.update(
                                                 "insert  into transactions (id, reverses_transaction_id, type,currency,idempotency_key) values (?,?,?,?,?)",
@@ -102,7 +102,7 @@ public class LedgerDatabaseTests extends LedgerDatabaseSetup {
         @Test
         public void appUserCannotChangeAccountName() {
                 UUID id = createAccount("asset");
-                Exception exception = assertThrows(Exception.class, () -> {
+                assertThrows(Exception.class, () -> {
                         jdbcTemplate.update("UPDATE accounts SET name = ? WHERE id = ?", "new-name", id);
                 });
                 assertEquals("test:" + id, jdbcTemplate.queryForObject(

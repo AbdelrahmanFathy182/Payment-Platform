@@ -15,84 +15,84 @@ import java.lang.String;
 @SpringBootTest
 public abstract class LedgerDatabaseSetup {
 
-    static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16")
-            .withInitScript("postgres/init.sql");
+        static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16")
+                        .withInitScript("postgres/init.sql");
 
-    static {
-        postgres.start();
-    }
+        static {
+                postgres.start();
+        }
 
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", () -> "ledger_service");
-        registry.add("spring.datasource.password", () -> "ledger_pass");
+        @DynamicPropertySource
+        static void configureProperties(DynamicPropertyRegistry registry) {
+                registry.add("spring.datasource.url", postgres::getJdbcUrl);
+                registry.add("spring.datasource.username", () -> "ledger_service");
+                registry.add("spring.datasource.password", () -> "ledger_pass");
 
-        registry.add("spring.flyway.url", postgres::getJdbcUrl);
-        registry.add("spring.flyway.user", () -> "flyway_user");
-        registry.add("spring.flyway.password", () -> "flyway_pass");
-    }
+                registry.add("spring.flyway.url", postgres::getJdbcUrl);
+                registry.add("spring.flyway.user", () -> "flyway_user");
+                registry.add("spring.flyway.password", () -> "flyway_pass");
+        }
 
-    @Autowired
-    protected JdbcTemplate jdbcTemplate;
-    @Autowired
-    protected TransactionTemplate tx;
+        @Autowired
+        protected JdbcTemplate jdbcTemplate;
+        @Autowired
+        protected TransactionTemplate tx;
 
-    /**
-     * JdbcTemplate connected as flyway_user (table owner), to test triggers without
-     * permission limits.
-     */
-    protected JdbcTemplate ownerJdbc() {
-        return new JdbcTemplate(new DriverManagerDataSource(
-                postgres.getJdbcUrl(), "flyway_user", "flyway_pass"));
-    }
+        /**
+         * JdbcTemplate connected as flyway_user (table owner), to test triggers without
+         * permission limits.
+         */
+        protected JdbcTemplate ownerJdbc() {
+                return new JdbcTemplate(new DriverManagerDataSource(
+                                postgres.getJdbcUrl(), "flyway_user", "flyway_pass"));
+        }
 
-    /**
-     * helper method to insert a payment transaction with entries, must be called
-     * within a transaction
-     */
-    protected void insertPayment(UUID txId, UUID debitAccount, UUID creditAccount, long amount, String typeString) {
-        jdbcTemplate.update(
-                "INSERT INTO transactions (id, type, currency, idempotency_key) VALUES (?, ?, 'EGP', ?)",
-                txId, typeString, UUID.randomUUID().toString());
-        jdbcTemplate.update(
-                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
-                UUID.randomUUID(), debitAccount, txId, amount);
-        jdbcTemplate.update(
-                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')",
-                UUID.randomUUID(), creditAccount, txId, amount);
-    }
+        /**
+         * helper method to insert a payment transaction with entries, must be called
+         * within a transaction
+         */
+        protected void insertPayment(UUID txId, UUID debitAccount, UUID creditAccount, long amount, String typeString) {
+                jdbcTemplate.update(
+                                "INSERT INTO transactions (id, type, currency, idempotency_key) VALUES (?, ?, 'EGP', ?)",
+                                txId, typeString, UUID.randomUUID().toString());
+                jdbcTemplate.update(
+                                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
+                                UUID.randomUUID(), debitAccount, txId, amount);
+                jdbcTemplate.update(
+                                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')",
+                                UUID.randomUUID(), creditAccount, txId, amount);
+        }
 
-    protected void insertReversal(UUID txId, UUID debitAccount, UUID creditAccount, long amount, UUID reversesID) {
-        jdbcTemplate.update(
-                "INSERT INTO transactions (id, type, currency, idempotency_key,reverses_transaction_id) VALUES (?, ?, 'EGP', ?,?)",
-                txId, "REVERSAL", UUID.randomUUID().toString(), reversesID);
-        jdbcTemplate.update(
-                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
-                UUID.randomUUID(), debitAccount, txId, amount);
-        jdbcTemplate.update(
-                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')",
-                UUID.randomUUID(), creditAccount, txId, amount);
-    }
+        protected void insertReversal(UUID txId, UUID debitAccount, UUID creditAccount, long amount, UUID reversesID) {
+                jdbcTemplate.update(
+                                "INSERT INTO transactions (id, type, currency, idempotency_key,reverses_transaction_id) VALUES (?, ?, 'EGP', ?,?)",
+                                txId, "REVERSAL", UUID.randomUUID().toString(), reversesID);
+                jdbcTemplate.update(
+                                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')",
+                                UUID.randomUUID(), debitAccount, txId, amount);
+                jdbcTemplate.update(
+                                "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')",
+                                UUID.randomUUID(), creditAccount, txId, amount);
+        }
 
-    /** Creates a fresh active EGP account with a unique name and returns its id. */
-    protected UUID createAccount(String type) {
-        UUID id = UUID.randomUUID();
-        jdbcTemplate.update(
-                "INSERT INTO accounts (id, name, type, currency, status) VALUES (?, ?, ?, ?, 'active')",
-                id, "test:" + id, type, "EGP");
-        return id;
-    }
+        /** Creates a fresh active EGP account with a unique name and returns its id. */
+        protected UUID createAccount(String type) {
+                UUID id = UUID.randomUUID();
+                jdbcTemplate.update(
+                                "INSERT INTO accounts (id, name, type, currency, status) VALUES (?, ?, ?, ?, 'active')",
+                                id, "test:" + id, type, "EGP");
+                return id;
+        }
 
-    /**
-     * Inserts one entry line. side must be "debits" or "credits". Call inside a
-     * transaction.
-     */
-    protected void insertEntry(UUID txId, UUID accountId, String side, long amount) {
-        String sql = side.equals("debits")
-                ? "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')"
-                : "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')";
-        jdbcTemplate.update(sql, UUID.randomUUID(), accountId, txId, amount);
-    }
+        /**
+         * Inserts one entry line. side must be "debits" or "credits". Call inside a
+         * transaction.
+         */
+        protected void insertEntry(UUID txId, UUID accountId, String side, long amount) {
+                String sql = side.equals("debits")
+                                ? "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, ?, NULL, 'EGP')"
+                                : "INSERT INTO entries (id, account_id, transaction_id, debits, credits, currency) VALUES (?, ?, ?, NULL, ?, 'EGP')";
+                jdbcTemplate.update(sql, UUID.randomUUID(), accountId, txId, amount);
+        }
 
 }
