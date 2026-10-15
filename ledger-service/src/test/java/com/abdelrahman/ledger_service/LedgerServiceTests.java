@@ -10,8 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.UUID;
 import com.abdelrahman.ledger_service.service.AccountService;
-import com.abdelrahman.ledger_service.domain.accountEnums.AccountCurrency;
-import com.abdelrahman.ledger_service.domain.accountEnums.AccountType;
+import com.abdelrahman.ledger_service.domain.Enums.Currency;
+import com.abdelrahman.ledger_service.domain.Enums.AccountType;
 import com.abdelrahman.ledger_service.dto.CreateAccountRequest;
 import com.abdelrahman.ledger_service.dto.CreateStatusUpdateRequest;
 import com.abdelrahman.ledger_service.exception.LedgerException;
@@ -23,7 +23,7 @@ public class LedgerServiceTests extends LedgerDatabaseSetup {
 
     @Test 
     void accountCreatedSuccess(){
-        CreateAccountRequest request =new CreateAccountRequest("accountCreatedSuccessTest",AccountType.liability, AccountCurrency.EGP);
+        CreateAccountRequest request =new CreateAccountRequest("accountCreatedSuccessTest",AccountType.liability, Currency.EGP);
         AccountService.CreateResult result = service.create(request);
         assertTrue(result.created());
         assertEquals(result.account().getName(), "accountCreatedSuccessTest");
@@ -33,21 +33,21 @@ public class LedgerServiceTests extends LedgerDatabaseSetup {
     @Test 
     void accountExistsWithdiffCurrency(){
         UUID testUuid =createAccount("liability");
-        CreateAccountRequest request =new CreateAccountRequest("test:"+testUuid,AccountType.liability, AccountCurrency.USD);
+        CreateAccountRequest request =new CreateAccountRequest("test:"+testUuid,AccountType.liability, Currency.USD);
         assertThrows(LedgerException.class,() -> service.create(request));
         
     }
     @Test 
     void accountExistsWithdiffType(){
         UUID testUuid =createAccount("liability");
-        CreateAccountRequest request =new CreateAccountRequest("test:"+testUuid,AccountType.asset, AccountCurrency.EGP);
+        CreateAccountRequest request =new CreateAccountRequest("test:"+testUuid,AccountType.asset,Currency.EGP);
         assertThrows(LedgerException.class,() -> service.create(request));
         
     }
     @Test 
     void accountExistsMatches(){
         UUID testUuid =createAccount("liability");
-        assertFalse(service.create(new CreateAccountRequest("test:"+testUuid,AccountType.liability, AccountCurrency.EGP)).created());
+        assertFalse(service.create(new CreateAccountRequest("test:"+testUuid,AccountType.liability, Currency.EGP)).created());
     }
 
     @Test 

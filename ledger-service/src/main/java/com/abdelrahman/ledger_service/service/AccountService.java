@@ -7,7 +7,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import java.util.Optional;
 import com.abdelrahman.ledger_service.domain.Account;
-import com.abdelrahman.ledger_service.domain.accountEnums.AccountStatus;
+import com.abdelrahman.ledger_service.domain.Enums.AccountStatus;
 import com.abdelrahman.ledger_service.dto.CreateAccountRequest;
 import com.abdelrahman.ledger_service.dto.CreateStatusUpdateRequest;
 import com.abdelrahman.ledger_service.exception.LedgerException;

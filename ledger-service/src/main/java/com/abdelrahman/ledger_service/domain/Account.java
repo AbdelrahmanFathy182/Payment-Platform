@@ -2,9 +2,9 @@ package com.abdelrahman.ledger_service.domain;
 
 import java.util.UUID;
 
-import com.abdelrahman.ledger_service.domain.accountEnums.AccountCurrency;
-import com.abdelrahman.ledger_service.domain.accountEnums.AccountStatus;
-import com.abdelrahman.ledger_service.domain.accountEnums.AccountType;
+import com.abdelrahman.ledger_service.domain.Enums.Currency;
+import com.abdelrahman.ledger_service.domain.Enums.AccountStatus;
+import com.abdelrahman.ledger_service.domain.Enums.AccountType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EnumType;
@@ -35,7 +35,7 @@ public class Account {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "currency", length = 3, nullable = false, updatable = false)
-    private AccountCurrency currency;
+    private Currency currency;
 
     @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
     private Instant created_at;
@@ -44,7 +44,7 @@ public class Account {
     }
 
     public Account(UUID id, String name, AccountStatus status, AccountType type,
-            AccountCurrency currency) {
+            Currency currency) {
         this.id = id;
         this.name = name;
         this.status = status;
@@ -71,7 +71,7 @@ public class Account {
         return type;
     }
 
-    public AccountCurrency getCurrency() {
+    public Currency getCurrency() {
         return currency;
     }
 
