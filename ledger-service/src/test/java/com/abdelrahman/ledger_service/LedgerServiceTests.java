@@ -23,7 +23,7 @@ public class LedgerServiceTests extends LedgerDatabaseSetup {
     @Test 
     void accountCreatedSuccess(){
         CreateAccountRequest request =new CreateAccountRequest("accountCreatedSuccessTest",AccountType.liability, AccountCurrency.EGP);
-        AccountService.Result result = service.create(request);
+        AccountService.CreateResult result = service.create(request);
         assertTrue(result.created());
         assertEquals(result.account().getName(), "accountCreatedSuccessTest");
         
