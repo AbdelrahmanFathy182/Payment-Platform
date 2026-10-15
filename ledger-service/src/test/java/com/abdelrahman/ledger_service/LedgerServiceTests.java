@@ -13,6 +13,7 @@ import com.abdelrahman.ledger_service.service.AccountService;
 import com.abdelrahman.ledger_service.domain.accountEnums.AccountCurrency;
 import com.abdelrahman.ledger_service.domain.accountEnums.AccountType;
 import com.abdelrahman.ledger_service.dto.CreateAccountRequest;
+import com.abdelrahman.ledger_service.dto.CreateStatusUpdateRequest;
 import com.abdelrahman.ledger_service.exception.LedgerException;
 
 public class LedgerServiceTests extends LedgerDatabaseSetup {
@@ -47,6 +48,21 @@ public class LedgerServiceTests extends LedgerDatabaseSetup {
     void accountExistsMatches(){
         UUID testUuid =createAccount("liability");
         assertFalse(service.create(new CreateAccountRequest("test:"+testUuid,AccountType.liability, AccountCurrency.EGP)).created());
+    }
+
+    @Test 
+    void accountStatusupdate(){
+        UUID testUuid =createAccount("liability");
+        boolean status = true;
+        CreateStatusUpdateRequest request = new CreateStatusUpdateRequest(status);
+        assertTrue(service.updateStatus("test:" + testUuid, request).updated());
+    }
+
+    @Test 
+    void accountNotFoundStatusupdate(){
+        boolean status = true;
+        CreateStatusUpdateRequest request = new CreateStatusUpdateRequest(status);
+        assertThrows(LedgerException.class,()-> service.updateStatus("badaccount", request));
     }
 
 }
