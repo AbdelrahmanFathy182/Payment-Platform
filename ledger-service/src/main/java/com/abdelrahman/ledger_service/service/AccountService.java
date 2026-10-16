@@ -26,6 +26,9 @@ public class AccountService {
     public record UpdateResult(Account account, boolean updated) {
     }
 
+    public record GetResult(Account account, boolean found) {
+    }
+
     private final AccountRepository repository;
 
     public AccountService(AccountRepository repository) {
@@ -63,12 +66,25 @@ public class AccountService {
     }
 
     @Transactional
-    public  UpdateResult updateStatus(String name, CreateStatusUpdateRequest request) {
+    public UpdateResult updateStatus(String name, CreateStatusUpdateRequest request) {
         Optional<Account> found = repository.findByName(name);
         if (found.isPresent()) {
             found.get().setStatus(request.active() ? AccountStatus.active : AccountStatus.inactive);
             return new UpdateResult(repository.save(found.get()), true);
         }
         throw new LedgerException("ACCOUNT_NAME_NOT_FOUND", 404, "Account not found:" + name);
+    }
+
+    @Transactional
+    public GetResult getAccount(UUID accountUuid) {
+        Optional<Account> found = repository.findById(accountUuid);
+
+        if (found.isPresent()) {
+            return new GetResult(found.get(), true);
+        } else {
+            throw new LedgerException("ACCOUNT_ID_NOT_FOUND", 404, "Account not found:" + accountUuid);
+
+        }
+
     }
 }

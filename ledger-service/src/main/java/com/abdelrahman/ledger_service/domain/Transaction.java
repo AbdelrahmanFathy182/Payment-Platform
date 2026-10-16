@@ -23,7 +23,7 @@ public class Transaction {
     @Column(name = "id", updatable = false)
     private UUID id;
 
-    @OneToOne(fetch = FetchType.LAZY) 
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reverses_transaction_id")
     private Transaction reverses_transaction_id;
 
@@ -40,4 +40,41 @@ public class Transaction {
 
     @Column(name = "idempotency_key", nullable = false, updatable = false)
     private String idempotencyKey;
+
+    protected Transaction() {
+    }
+
+    protected Transaction(UUID id, Transaction reversedTransaction, Currency currency, TransactionType transactionType,
+            String idempotencyKey) {
+        this.currency = currency;
+        this.id = id;
+        this.idempotencyKey = idempotencyKey;
+        this.reverses_transaction_id = reversedTransaction;
+        this.type = transactionType;
+    }
+
+    public UUID getId() {
+        return this.id;
+    }
+
+    public Transaction getTransaction() {
+        return this.reverses_transaction_id;
+    }
+
+    public Currency getCurrency() {
+        return this.currency;
+    }
+
+    public Instant getCreationtimeInstant() {
+        return this.created_at;
+    }
+
+    public TransactionType getType() {
+        return this.type;
+    }
+
+    public String getIdempotencyKey() {
+        return this.idempotencyKey;
+    }
+
 }
