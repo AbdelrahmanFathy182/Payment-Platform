@@ -1,7 +1,5 @@
 package com.abdelrahman.ledger_service.controller;
 
-import java.util.UUID;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,9 +36,9 @@ public class AccountController {
         AccountResponse body = AccountResponse.from(result.account());        
         return ResponseEntity.status(result.updated() ? 201 : 200).body(body);
     }
-    @GetMapping("/{id}")
-    public ResponseEntity<AccountResponse> getMethodName(@PathVariable UUID id) {
-        AccountService.GetResult result = service.getAccount(id);
+    @GetMapping("/{name}")
+    public ResponseEntity<AccountResponse> getMethodName(@PathVariable String name) {
+        AccountService.GetResult result = service.getAccount(name);
         AccountResponse body= AccountResponse.from(result.account());
         return ResponseEntity.status(result.found() ? 201:200).body(body);
     }

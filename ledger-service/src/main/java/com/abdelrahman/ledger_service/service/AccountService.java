@@ -76,13 +76,13 @@ public class AccountService {
     }
 
     @Transactional
-    public GetResult getAccount(UUID accountUuid) {
-        Optional<Account> found = repository.findById(accountUuid);
+    public GetResult getAccount(String name) {
+        Optional<Account> found = repository.findByName(name);
 
         if (found.isPresent()) {
             return new GetResult(found.get(), true);
         } else {
-            throw new LedgerException("ACCOUNT_ID_NOT_FOUND", 404, "Account not found:" + accountUuid);
+            throw new LedgerException("ACCOUNT_NAME_NOT_FOUND", 404, "Account not found:" + name);
 
         }
 
