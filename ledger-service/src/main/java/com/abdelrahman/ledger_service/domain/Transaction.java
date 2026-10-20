@@ -25,7 +25,7 @@ public class Transaction {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reverses_transaction_id")
-    private Transaction reverses_transaction_id;
+    private Transaction reversesTransactionId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "currency", length = 3, nullable = false, updatable = false)
@@ -49,7 +49,7 @@ public class Transaction {
         this.currency = currency;
         this.id = id;
         this.idempotencyKey = idempotencyKey;
-        this.reverses_transaction_id = reversedTransaction;
+        this.reversesTransactionId = reversedTransaction;
         this.type = transactionType;
     }
 
@@ -58,7 +58,7 @@ public class Transaction {
     }
 
     public Transaction getTransaction() {
-        return this.reverses_transaction_id;
+        return this.reversesTransactionId;
     }
 
     public Currency getCurrency() {

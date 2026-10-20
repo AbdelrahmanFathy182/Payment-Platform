@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import com.abdelrahman.ledger_service.domain.Enums.TransactionType;
 
-public record TransactionResponse(UUID id, UUID reversesTransactionId, Currency currency, TransactionType type) {
-
+public record TransactionResponse(UUID id,
+        Currency currency,
+        TransactionType type) 
+        {
 }
