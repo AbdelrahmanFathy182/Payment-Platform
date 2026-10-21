@@ -16,7 +16,7 @@ import com.abdelrahman.ledger_service.dto.CreateAccountRequest;
 import com.abdelrahman.ledger_service.dto.CreateStatusUpdateRequest;
 import com.abdelrahman.ledger_service.exception.LedgerException;
 
-public class LedgerServiceTests extends LedgerDatabaseSetup {
+public class LedgerAccountServiceTests extends LedgerDatabaseSetup {
 
     @Autowired
     private AccountService service;

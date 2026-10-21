@@ -1,14 +1,10 @@
 package com.abdelrahman.ledger_service.domain;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import com.abdelrahman.ledger_service.domain.Enums.Currency;
 import com.abdelrahman.ledger_service.domain.Enums.TransactionType;
-import com.abdelrahman.ledger_service.dto.EntryRequest;
-import com.abdelrahman.ledger_service.dto.TransactionRequest;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import com.abdelrahman.ledger_service.controller.AccountController;
 import com.abdelrahman.ledger_service.domain.Account;
 import com.abdelrahman.ledger_service.domain.Entry;
 import com.abdelrahman.ledger_service.domain.Transaction;
@@ -26,7 +25,6 @@ import org.springframework.stereotype.Service;
 
 import jakarta.transaction.Transactional;
 import java.util.UUID;
-import java.util.zip.CRC32;
 
 @Service
 public class TransactionService {
@@ -128,7 +126,7 @@ public class TransactionService {
 
         TransactionString.append(transaction.getType()).append("|");
         TransactionString.append(transaction.getCurrency()).append("|");
-        for (Entry entry : entries) {
+        for (Entry entry : sortedEntries) {
             TransactionString.append(entry.getAccount().getId()).append("|");
             TransactionString.append(entry.getAmount()).append("|");
             TransactionString.append(entry.getDirection()).append("|");
