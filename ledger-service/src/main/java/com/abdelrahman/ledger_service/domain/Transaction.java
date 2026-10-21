@@ -1,10 +1,14 @@
 package com.abdelrahman.ledger_service.domain;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import com.abdelrahman.ledger_service.domain.Enums.Currency;
 import com.abdelrahman.ledger_service.domain.Enums.TransactionType;
+import com.abdelrahman.ledger_service.dto.EntryRequest;
+import com.abdelrahman.ledger_service.dto.TransactionRequest;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -44,7 +48,7 @@ public class Transaction {
     protected Transaction() {
     }
 
-    protected Transaction(UUID id, Transaction reversedTransaction, Currency currency, TransactionType transactionType,
+    public  Transaction(UUID id, Transaction reversedTransaction, Currency currency, TransactionType transactionType,
             String idempotencyKey) {
         this.currency = currency;
         this.id = id;
@@ -53,6 +57,7 @@ public class Transaction {
         this.type = transactionType;
     }
 
+    
     public UUID getId() {
         return this.id;
     }

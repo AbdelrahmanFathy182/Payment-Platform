@@ -11,8 +11,8 @@ public interface TransactionRepository extends Repository<Transaction, UUID> ,Tr
 
     Optional<Transaction> findByIdempotencyKey(String key);
 
-    boolean existsByreversesTransactionId(UUID transactionId);
+    boolean existsByreversesTransactionId(Transaction transaction);
 
-    Optional<Transaction> findByreversesTransactionId(UUID transactionId);
+    Optional<Transaction> findByreversesTransactionId(Transaction transaction);
 
 }

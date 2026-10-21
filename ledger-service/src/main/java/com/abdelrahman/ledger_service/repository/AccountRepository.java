@@ -10,4 +10,7 @@ import java.util.Collection;
 public interface AccountRepository extends JpaRepository<Account, UUID> {
     Optional<Account> findByName(String name);
     List<Account> findAllByIdIn(Collection<UUID> ids);
+    Optional<Account> findById(UUID accountId);
+    
+
 }
