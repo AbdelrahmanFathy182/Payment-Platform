@@ -92,7 +92,7 @@ public class Entry {
     public BigDecimal getAmount() {
         if (this.credits == null && this.debits != null) {
             return this.debits;
-        } else if (this.credits == null && this.debits != null) {
+        } else if (this.credits != null && this.debits == null) {
             return this.credits;
         } else if (this.credits == null && this.debits == null) {
             throw new DataIntegrityViolationException("credits and debits both are null");
@@ -104,7 +104,7 @@ public class Entry {
     public Direction getDirection() {
         if (this.credits == null && this.debits != null) {
             return Direction.debit;
-        } else if (this.credits == null && this.debits != null) {
+        } else if (this.credits != null && this.debits == null) {
             return Direction.credit;
         } else if (this.credits == null && this.debits == null) {
             throw new DataIntegrityViolationException("credits and debits both are null");

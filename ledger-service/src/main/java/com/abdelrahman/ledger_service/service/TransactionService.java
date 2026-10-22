@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 import com.abdelrahman.ledger_service.domain.Account;
 import com.abdelrahman.ledger_service.domain.Entry;
@@ -12,7 +13,6 @@ import com.abdelrahman.ledger_service.domain.Enums.AccountStatus;
 import com.abdelrahman.ledger_service.dto.Direction;
 import com.abdelrahman.ledger_service.dto.EntryRequest;
 import com.abdelrahman.ledger_service.dto.TransactionRequest;
-import com.abdelrahman.ledger_service.dto.TransactionResponse;
 import com.abdelrahman.ledger_service.exception.LedgerException;
 import com.abdelrahman.ledger_service.repository.AccountRepository;
 import com.abdelrahman.ledger_service.repository.EntryRepository;
@@ -47,13 +47,16 @@ public class TransactionService {
 
     @Transactional
     public CreateResult createTransaction(TransactionRequest request) {
-        Transaction transaction = null;
-        List<Entry> entries = null;
-        transaction = buildTransaction(request, entries);
-        if (!checkIdempotencyDuplicate(transaction)) {
-            validateEntries(request.entries());
-            insertTransaction(transaction, entries);
+        List<Entry> entries = new ArrayList<>();
+        Transaction transaction = buildTransaction(request, entries);
+
+        Optional<Transaction> existing = findIdempotencyDuplicate(transaction, entries);
+        if (existing.isPresent()) {
+            return new CreateResult(existing.get(), false);
         }
+
+        validateEntries(request.entries());
+        insertTransaction(transaction, entries);
         return new CreateResult(transaction, true);
     }
 
@@ -80,8 +83,10 @@ public class TransactionService {
         boolean hasInactiveAccount = accounts.stream()
                 .anyMatch(account -> account.getStatus() == AccountStatus.inactive);
 
-        boolean hasDuplicateAccount = accounts.stream().map(Account::getId).distinct().count() != accounts.size();
-
+        boolean hasDuplicateAccount = entries.stream()
+                .map(EntryRequest::accountId)
+                .distinct()
+                .count() != entries.size();
         if (accounts.size() != accountIds.size()) {
             throw new LedgerException("ACCOUNT_NOT_FOUND", 404, "one or more accounts do not exist");
         }
@@ -94,27 +99,26 @@ public class TransactionService {
         }
     }
 
-    public boolean checkIdempotencyDuplicate(Transaction request) {
+    private Optional<Transaction> findIdempotencyDuplicate(Transaction request, List<Entry> requestEntries) {
         Optional<Transaction> found = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
         if (found.isPresent()) {
-            List<Entry> requestEntries = entryRepository.findByTransaction(request);
             List<Entry> foundEntries = entryRepository.findByTransaction(found.get());
             String requestString = buildTransactionString(request, requestEntries);
             String foundString = buildTransactionString(found.get(), foundEntries);
             String requestHash = hasher.sha256(requestString);
             String foundHash = hasher.sha256(foundString);
 
-            if (requestHash == foundHash) {
-                return true;
+            if (Objects.equals(requestHash, foundHash)) {
+                return found;
             } else {
                 throw new LedgerException("CONFLICT", 409, "rejected request, same idempotency key but different hash");
             }
         }
-        return false;
+        return Optional.empty();
     }
-
-    public TransactionResponse insertTransaction(Transaction transaction, List<Entry> entries) {
-        return null;
+    public void insertTransaction(Transaction transaction, List<Entry> entries) {
+        transactionRepository.insert(transaction);
+        entryRepository.saveAll(entries);
     }
 
     private String buildTransactionString(Transaction transaction, List<Entry> entries) {
@@ -138,20 +142,26 @@ public class TransactionService {
     public Transaction buildTransaction(TransactionRequest request, List<Entry> entriesrefrence) {
         Transaction transaction = new Transaction(UUID.randomUUID(), null, request.currency(), request.type(),
                 request.idempotencyKey());
-        entriesrefrence = new ArrayList<>();
-        for (EntryRequest entryRequest : request.entries()) {
-            Optional<Account> tempAccount = accountRepository.findById(entryRequest.accountId());
-            if (entryRequest.direction() == Direction.credit) {
-                entriesrefrence
-                        .add(new Entry(UUID.randomUUID(), tempAccount.get(), transaction, entryRequest.amount(), null,
-                                request.currency()));
-            } else {
-                entriesrefrence
-                        .add(new Entry(UUID.randomUUID(), tempAccount.get(), transaction, null, entryRequest.amount(),
-                                request.currency()));
+        try {
+            for (EntryRequest entryRequest : request.entries()) {
+                Optional<Account> tempAccount = accountRepository.findById(entryRequest.accountId());
+                if (entryRequest.direction() == Direction.credit) {
+                    entriesrefrence
+                            .add(new Entry(UUID.randomUUID(), tempAccount.get(), transaction, entryRequest.amount(),
+                                    null,
+                                    request.currency()));
+                } else {
+                    entriesrefrence
+                            .add(new Entry(UUID.randomUUID(), tempAccount.get(), transaction, null,
+                                    entryRequest.amount(),
+                                    request.currency()));
+                }
             }
+            return transaction;
+        } catch (Exception e) {
+            throw new LedgerException("ACCOUNT_NOT_FOUND", 404, "one or more accounts do not exist");
+
         }
-        return transaction;
     }
 
 }
