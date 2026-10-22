@@ -45,6 +45,42 @@ public class TransactionService {
     public record CreateResult(Transaction transaction, Boolean created) {
     }
 
+    public record GetResult(Transaction transaction, Boolean found) {
+    }
+
+    public record ReversalResult(Transaction transaction, Boolean reversed) {
+    }
+
+    @Transactional
+    public ReversalResult reverseTransaction(UUID TransactionId, String idempotencyKey) {
+        Optional<Transaction> found = transactionRepository.findById(TransactionId);
+        if (found.isEmpty()) {
+            throw new LedgerException("TRANSACTION_NOT_FOUND", 404, "transaction id not found:" + TransactionId);
+        }
+        Transaction reversedTransaction = found.get().getReverse(idempotencyKey);
+        Optional<List<Entry>> entries = entryRepository.findByTransaction(found.get());
+        if(entries.isEmpty()){
+            throw new LedgerException("ENTRIES_NOT_FOUND", 404, "no entries associated with this transaction found");
+        }
+        List<Entry> reversedEntries = new ArrayList<>();
+        for (Entry entry : entries.get()) {
+            reversedEntries.add(entry.getReverse(reversedTransaction));
+        }
+        insertTransaction(reversedTransaction, reversedEntries);
+        return new ReversalResult(reversedTransaction,true);
+    }
+
+
+    @Transactional
+    public GetResult getTransaction(UUID id) {
+        Optional<Transaction> found = transactionRepository.findById(id);
+        if (found.isPresent()) {
+            return new GetResult(found.get(), true);
+        } else {
+            throw new LedgerException("TRANSACTION_NOT_FOUND", 404, "transaction id not found:" + id);
+        }
+    }
+
     @Transactional
     public CreateResult createTransaction(TransactionRequest request) {
         List<Entry> entries = new ArrayList<>();
@@ -102,9 +138,9 @@ public class TransactionService {
     private Optional<Transaction> findIdempotencyDuplicate(Transaction request, List<Entry> requestEntries) {
         Optional<Transaction> found = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
         if (found.isPresent()) {
-            List<Entry> foundEntries = entryRepository.findByTransaction(found.get());
+            Optional<List<Entry>> foundEntries = entryRepository.findByTransaction(found.get());
             String requestString = buildTransactionString(request, requestEntries);
-            String foundString = buildTransactionString(found.get(), foundEntries);
+            String foundString = buildTransactionString(found.get(), foundEntries.get());
             String requestHash = hasher.sha256(requestString);
             String foundHash = hasher.sha256(foundString);
 
@@ -116,6 +152,7 @@ public class TransactionService {
         }
         return Optional.empty();
     }
+
     public void insertTransaction(Transaction transaction, List<Entry> entries) {
         transactionRepository.insert(transaction);
         entryRepository.saveAll(entries);

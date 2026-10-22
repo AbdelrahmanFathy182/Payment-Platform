@@ -40,7 +40,7 @@ public class AccountController {
     public ResponseEntity<AccountResponse> getMethodName(@PathVariable String name) {
         AccountService.GetResult result = service.getAccount(name);
         AccountResponse body= AccountResponse.from(result.account());
-        return ResponseEntity.status(result.found() ? 201:200).body(body);
+        return ResponseEntity.status(200).body(body);
     }
     
 }

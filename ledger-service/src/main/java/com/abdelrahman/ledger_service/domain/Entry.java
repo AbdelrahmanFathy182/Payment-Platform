@@ -112,4 +112,8 @@ public class Entry {
             throw new DataIntegrityViolationException("credits and debits both have value");
         }
     }
+
+    public Entry getReverse(Transaction reversedTransaction) {
+        return new Entry(UUID.randomUUID(), this.account, reversedTransaction, this.debits, this.credits, this.currency);
+    }
 }

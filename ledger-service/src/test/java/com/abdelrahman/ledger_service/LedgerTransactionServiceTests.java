@@ -153,4 +153,23 @@ public class LedgerTransactionServiceTests extends LedgerDatabaseSetup {
         assertEquals(firstResult.transaction().getId(), retryResult.transaction().getId());
     }
 
+    @Test 
+    void reverseTransactionSuccess(){
+        UUID testBuyerId = createAccount("liability");
+        UUID testSellerId = createAccount("liability");
+
+        EntryRequest entryRequest1 = new EntryRequest(testBuyerId, Direction.credit,new BigDecimal(6));
+        EntryRequest entryRequest2 = new EntryRequest(testSellerId, Direction.debit,new BigDecimal(6));
+
+        List<EntryRequest> entries = new ArrayList<>();
+        entries.add(entryRequest2);
+        entries.add(entryRequest1);
+        TransactionRequest request = new TransactionRequest("testkey6", TransactionType.PAYMENT, Currency.EGP, entries);
+        TransactionService.CreateResult result = service.createTransaction(request);
+
+        TransactionService.ReversalResult reverseResult = service.reverseTransaction(result.transaction().getId(),"testkey7");
+        assertTrue(reverseResult.reversed());
+
+    }
+
 }

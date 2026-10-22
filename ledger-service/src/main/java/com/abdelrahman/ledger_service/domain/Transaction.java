@@ -44,7 +44,7 @@ public class Transaction {
     protected Transaction() {
     }
 
-    public  Transaction(UUID id, Transaction reversedTransaction, Currency currency, TransactionType transactionType,
+    public Transaction(UUID id, Transaction reversedTransaction, Currency currency, TransactionType transactionType,
             String idempotencyKey) {
         this.currency = currency;
         this.id = id;
@@ -53,7 +53,6 @@ public class Transaction {
         this.type = transactionType;
     }
 
-    
     public UUID getId() {
         return this.id;
     }
@@ -78,4 +77,7 @@ public class Transaction {
         return this.idempotencyKey;
     }
 
+    public Transaction getReverse(String idempotencyKey) {
+        return new Transaction(UUID.randomUUID(), this, this.currency, TransactionType.REVERSAL, idempotencyKey);
+    }
 }
