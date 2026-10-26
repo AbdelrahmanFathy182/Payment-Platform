@@ -40,6 +40,12 @@ public class AccountService {
     public record GetResult(Account account, boolean found) {
     }
 
+    public record BalanceResult(Account account, BigDecimal balance) {
+    }
+
+    public record EntryHistoryResult(List<EntryDTO> entries) {
+    }
+
     private final AccountRepository accountRepository;
     private final EntryRepository entryRepository;
 
@@ -102,24 +108,23 @@ public class AccountService {
     }
 
     @Transactional
-    public BigDecimal getBalance(UUID accountId, Currency currency) {
+    public BalanceResult getBalance(UUID accountId) {
         Optional<Account> found = accountRepository.findById(accountId);
         if (found.isEmpty()) {
             throw new LedgerException("ACCOUNT_NOT_FOUND", 404, "Account not found with ID:" + accountId);
         }
-        currency = found.get().getCurrency();
         List<Entry> entries = entryRepository.findByAccount(found.get());
         if (entries.isEmpty()) {
-            return BigDecimal.ZERO;
+            return new BalanceResult(found.get(), BigDecimal.ZERO);
         }
         BigDecimal sumCredits = new BigDecimal(0);
         BigDecimal sumDebits = new BigDecimal(0);
 
         for (Entry entry : entries) {
             if (entry.getDirection() == Direction.credit) {
-                sumCredits.add(entry.getAmount());
+                sumCredits = sumCredits.add(entry.getAmount());
             } else {
-                sumDebits.add(entry.getAmount());
+                sumDebits = sumDebits.add(entry.getAmount());
             }
         }
 
@@ -132,16 +137,16 @@ public class AccountService {
         AccountType type = found.get().getType();
 
         if (type.equals(AccountType.liability) || type.equals(AccountType.equity) || type.equals(AccountType.revenue)) {
-            return sumCredits.subtract(sumDebits);
+            return new BalanceResult(found.get(), sumCredits.subtract(sumDebits));
         } else if (type.equals(AccountType.asset) || type.equals(AccountType.expense)) {
-            return sumDebits.subtract(sumCredits);
+            return new BalanceResult(found.get(), sumDebits.subtract(sumCredits));
         } else {
             throw new LedgerException("ACCOUNT_TYPE_WRONG", 400, "Account with ID:" + accountId + "has bad type");
         }
     }
 
     @Transactional
-    public List<EntryDTO> getEntryHistory(UUID accountId) {
+    public EntryHistoryResult getEntryHistory(UUID accountId) {
         Optional<Account> account = accountRepository.findById(accountId);
         if (account.isEmpty()) {
             throw new LedgerException("ACCOUNT_NOT_FOUND", 404, "Account not found with ID:" + accountId);
@@ -150,10 +155,10 @@ public class AccountService {
         if (entries.isEmpty()) {
             throw new LedgerException("ENTRIES_NOT_FOUND", 404, "Account with ID:" + accountId + "has no entries");
         }
-        List<EntryDTO> entriesResponse= new ArrayList<>();
+        List<EntryDTO> entriesResponse = new ArrayList<>();
         for (Entry entry : entries) {
             entriesResponse.add(EntryDTO.from(entry));
         }
-        return entriesResponse;
+        return new EntryHistoryResult(entriesResponse);
     }
 }

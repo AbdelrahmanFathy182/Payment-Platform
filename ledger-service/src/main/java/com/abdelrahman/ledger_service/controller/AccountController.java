@@ -1,6 +1,5 @@
 package com.abdelrahman.ledger_service.controller;
 
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,11 +11,12 @@ import jakarta.validation.Valid;
 import com.abdelrahman.ledger_service.service.AccountService;
 import com.abdelrahman.ledger_service.dto.*;
 import org.springframework.web.bind.annotation.GetMapping;
-import com.abdelrahman.ledger_service.domain.Enums.Currency;
 
+import com.abdelrahman.ledger_service.domain.Enums.AccountType;
+import com.abdelrahman.ledger_service.domain.Enums.Currency;
+import java.util.List;
 import java.math.BigDecimal;
 import java.util.UUID;
-
 
 @RestController
 @RequestMapping("/api/v1/accounts")
@@ -36,32 +36,31 @@ public class AccountController {
     }
 
     @PatchMapping("/{name}")
-    public ResponseEntity<AccountResponse> updareAccountStatus(@PathVariable String name, @Valid @RequestBody CreateStatusUpdateRequest request) {
+    public ResponseEntity<AccountResponse> updareAccountStatus(@PathVariable String name,
+            @Valid @RequestBody CreateStatusUpdateRequest request) {
         AccountService.UpdateResult result = service.updateStatus(name, request);
-        AccountResponse body = AccountResponse.from(result.account());        
-        return ResponseEntity.status(result.updated() ? 201 : 200).body(body);
+        AccountResponse body = AccountResponse.from(result.account());
+        return ResponseEntity.status(200).body(body);
     }
+
     @GetMapping("/{name}")
     public ResponseEntity<AccountResponse> getAccount(@PathVariable String name) {
         AccountService.GetResult result = service.getAccount(name);
-        AccountResponse body= AccountResponse.from(result.account());
+        AccountResponse body = AccountResponse.from(result.account());
         return ResponseEntity.status(200).body(body);
     }
+
     @GetMapping("{id}/balance")
     public ResponseEntity<BalanceResponse> getBalance(@PathVariable UUID id) {
-        Currency currency=null;
-        BigDecimal result = service.getBalance(id,currency);
-        BalanceResponse body= new BalanceResponse(id,result,currency);
-        return ResponseEntity.status(200).body(body); 
+        AccountService.BalanceResult result = service.getBalance(id);
+        BalanceResponse body = new BalanceResponse(id, result.balance(), result.account().getCurrency());
+        return ResponseEntity.status(200).body(body);
     }
 
     @GetMapping("{id}/entries")
-    public ResponseEntity<BalanceResponse> getAccountEntries(@PathVariable UUID id) {
-        Currency currency=null;
-        BigDecimal result = service.getBalance(id,currency);
-        BalanceResponse body= new BalanceResponse(id,result,currency);
-        return ResponseEntity.status(200).body(body); 
+    public ResponseEntity<List<EntryDTO>> getAccountEntries(@PathVariable UUID id) {
+        AccountService.EntryHistoryResult result = service.getEntryHistory(id);
+        return ResponseEntity.status(200).body(result.entries());
     }
-    
-    
+
 }
