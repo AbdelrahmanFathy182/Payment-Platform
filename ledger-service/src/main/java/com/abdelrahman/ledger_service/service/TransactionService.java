@@ -11,7 +11,7 @@ import com.abdelrahman.ledger_service.domain.Entry;
 import com.abdelrahman.ledger_service.domain.Transaction;
 import com.abdelrahman.ledger_service.domain.Enums.AccountStatus;
 import com.abdelrahman.ledger_service.dto.Direction;
-import com.abdelrahman.ledger_service.dto.EntryRequest;
+import com.abdelrahman.ledger_service.dto.EntryDTO;
 import com.abdelrahman.ledger_service.dto.TransactionRequest;
 import com.abdelrahman.ledger_service.exception.LedgerException;
 import com.abdelrahman.ledger_service.repository.AccountRepository;
@@ -58,12 +58,12 @@ public class TransactionService {
             throw new LedgerException("TRANSACTION_NOT_FOUND", 404, "transaction id not found:" + TransactionId);
         }
         Transaction reversedTransaction = found.get().getReverse(idempotencyKey);
-        Optional<List<Entry>> entries = entryRepository.findByTransaction(found.get());
+        List<Entry> entries = entryRepository.findByTransaction(found.get());
         if(entries.isEmpty()){
             throw new LedgerException("ENTRIES_NOT_FOUND", 404, "no entries associated with this transaction found");
         }
         List<Entry> reversedEntries = new ArrayList<>();
-        for (Entry entry : entries.get()) {
+        for (Entry entry : entries) {
             reversedEntries.add(entry.getReverse(reversedTransaction));
         }
         insertTransaction(reversedTransaction, reversedEntries);
@@ -96,11 +96,11 @@ public class TransactionService {
         return new CreateResult(transaction, true);
     }
 
-    public void validateEntries(List<EntryRequest> entries) {
+    public void validateEntries(List<EntryDTO> entries) {
 
         BigDecimal creditsSum = BigDecimal.ZERO;
         BigDecimal debitsSum = BigDecimal.ZERO;
-        for (EntryRequest entryRequest : entries) {
+        for (EntryDTO entryRequest : entries) {
             if (entryRequest.direction() == Direction.credit) {
                 creditsSum = creditsSum.add(entryRequest.amount());
             } else if (entryRequest.direction() == Direction.debit) {
@@ -112,7 +112,7 @@ public class TransactionService {
         }
 
         List<UUID> accountIds = entries.stream()
-                .map(EntryRequest::accountId)
+                .map(EntryDTO::accountId)
                 .distinct()
                 .toList();
         List<Account> accounts = accountRepository.findAllByIdIn(accountIds);
@@ -120,7 +120,7 @@ public class TransactionService {
                 .anyMatch(account -> account.getStatus() == AccountStatus.inactive);
 
         boolean hasDuplicateAccount = entries.stream()
-                .map(EntryRequest::accountId)
+                .map(EntryDTO::accountId)
                 .distinct()
                 .count() != entries.size();
         if (accounts.size() != accountIds.size()) {
@@ -138,9 +138,9 @@ public class TransactionService {
     private Optional<Transaction> findIdempotencyDuplicate(Transaction request, List<Entry> requestEntries) {
         Optional<Transaction> found = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
         if (found.isPresent()) {
-            Optional<List<Entry>> foundEntries = entryRepository.findByTransaction(found.get());
+            List<Entry> foundEntries = entryRepository.findByTransaction(found.get());
             String requestString = buildTransactionString(request, requestEntries);
-            String foundString = buildTransactionString(found.get(), foundEntries.get());
+            String foundString = buildTransactionString(found.get(), foundEntries);
             String requestHash = hasher.sha256(requestString);
             String foundHash = hasher.sha256(foundString);
 
@@ -180,7 +180,7 @@ public class TransactionService {
         Transaction transaction = new Transaction(UUID.randomUUID(), null, request.currency(), request.type(),
                 request.idempotencyKey());
         try {
-            for (EntryRequest entryRequest : request.entries()) {
+            for (EntryDTO entryRequest : request.entries()) {
                 Optional<Account> tempAccount = accountRepository.findById(entryRequest.accountId());
                 if (entryRequest.direction() == Direction.credit) {
                     entriesrefrence

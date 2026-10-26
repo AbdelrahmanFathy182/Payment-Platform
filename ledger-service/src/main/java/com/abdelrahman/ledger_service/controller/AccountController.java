@@ -1,5 +1,6 @@
 package com.abdelrahman.ledger_service.controller;
 
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,6 +12,10 @@ import jakarta.validation.Valid;
 import com.abdelrahman.ledger_service.service.AccountService;
 import com.abdelrahman.ledger_service.dto.*;
 import org.springframework.web.bind.annotation.GetMapping;
+import com.abdelrahman.ledger_service.domain.Enums.Currency;
+
+import java.math.BigDecimal;
+import java.util.UUID;
 
 
 @RestController
@@ -37,10 +42,26 @@ public class AccountController {
         return ResponseEntity.status(result.updated() ? 201 : 200).body(body);
     }
     @GetMapping("/{name}")
-    public ResponseEntity<AccountResponse> getMethodName(@PathVariable String name) {
+    public ResponseEntity<AccountResponse> getAccount(@PathVariable String name) {
         AccountService.GetResult result = service.getAccount(name);
         AccountResponse body= AccountResponse.from(result.account());
         return ResponseEntity.status(200).body(body);
     }
+    @GetMapping("{id}/balance")
+    public ResponseEntity<BalanceResponse> getBalance(@PathVariable UUID id) {
+        Currency currency=null;
+        BigDecimal result = service.getBalance(id,currency);
+        BalanceResponse body= new BalanceResponse(id,result,currency);
+        return ResponseEntity.status(200).body(body); 
+    }
+
+    @GetMapping("{id}/entries")
+    public ResponseEntity<BalanceResponse> getAccountEntries(@PathVariable UUID id) {
+        Currency currency=null;
+        BigDecimal result = service.getBalance(id,currency);
+        BalanceResponse body= new BalanceResponse(id,result,currency);
+        return ResponseEntity.status(200).body(body); 
+    }
+    
     
 }

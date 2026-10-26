@@ -3,15 +3,26 @@ package com.abdelrahman.ledger_service.service;
 import java.util.UUID;
 
 import jakarta.transaction.Transactional;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import com.abdelrahman.ledger_service.domain.Entry;
+import com.abdelrahman.ledger_service.domain.Enums.Currency;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import com.abdelrahman.ledger_service.domain.Account;
 import com.abdelrahman.ledger_service.domain.Enums.AccountStatus;
 import com.abdelrahman.ledger_service.dto.CreateAccountRequest;
 import com.abdelrahman.ledger_service.dto.CreateStatusUpdateRequest;
+import com.abdelrahman.ledger_service.dto.Direction;
 import com.abdelrahman.ledger_service.exception.LedgerException;
 import com.abdelrahman.ledger_service.repository.AccountRepository;
+import com.abdelrahman.ledger_service.repository.EntryRepository;
+import java.math.BigDecimal;
+import com.abdelrahman.ledger_service.domain.Enums.AccountType;
+import com.abdelrahman.ledger_service.dto.EntryDTO;
 
 @Service
 public class AccountService {
@@ -29,15 +40,17 @@ public class AccountService {
     public record GetResult(Account account, boolean found) {
     }
 
-    private final AccountRepository repository;
+    private final AccountRepository accountRepository;
+    private final EntryRepository entryRepository;
 
-    public AccountService(AccountRepository repository) {
-        this.repository = repository;
+    public AccountService(AccountRepository aRepository, EntryRepository eRepository) {
+        this.accountRepository = aRepository;
+        this.entryRepository = eRepository;
     }
 
     // Deliberately NOT @Transactional. See the note below.
     public CreateResult create(CreateAccountRequest request) {
-        Optional<Account> found = repository.findByName(request.name());
+        Optional<Account> found = accountRepository.findByName(request.name());
 
         if (found.isPresent()) {
             return sameAs(found.get(), request); // name exists: compare
@@ -49,10 +62,10 @@ public class AccountService {
         Account account = new Account(UUID.randomUUID(), request.name(),
                 AccountStatus.active, request.type(), request.currency());
         try {
-            return new CreateResult(repository.saveAndFlush(account), true);
+            return new CreateResult(accountRepository.saveAndFlush(account), true);
         } catch (DataIntegrityViolationException e) {
             // Lost a race: another request created this name first.
-            Account existing = repository.findByName(request.name()).orElseThrow(() -> e);
+            Account existing = accountRepository.findByName(request.name()).orElseThrow(() -> e);
             return sameAs(existing, request);
         }
     }
@@ -67,17 +80,17 @@ public class AccountService {
 
     @Transactional
     public UpdateResult updateStatus(String name, CreateStatusUpdateRequest request) {
-        Optional<Account> found = repository.findByName(name);
+        Optional<Account> found = accountRepository.findByName(name);
         if (found.isPresent()) {
             found.get().setStatus(request.active() ? AccountStatus.active : AccountStatus.inactive);
-            return new UpdateResult(repository.save(found.get()), true);
+            return new UpdateResult(accountRepository.save(found.get()), true);
         }
         throw new LedgerException("ACCOUNT_NAME_NOT_FOUND", 404, "Account not found:" + name);
     }
 
     @Transactional
     public GetResult getAccount(String name) {
-        Optional<Account> found = repository.findByName(name);
+        Optional<Account> found = accountRepository.findByName(name);
 
         if (found.isPresent()) {
             return new GetResult(found.get(), true);
@@ -86,5 +99,61 @@ public class AccountService {
 
         }
 
+    }
+
+    @Transactional
+    public BigDecimal getBalance(UUID accountId, Currency currency) {
+        Optional<Account> found = accountRepository.findById(accountId);
+        if (found.isEmpty()) {
+            throw new LedgerException("ACCOUNT_NOT_FOUND", 404, "Account not found with ID:" + accountId);
+        }
+        currency = found.get().getCurrency();
+        List<Entry> entries = entryRepository.findByAccount(found.get());
+        if (entries.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal sumCredits = new BigDecimal(0);
+        BigDecimal sumDebits = new BigDecimal(0);
+
+        for (Entry entry : entries) {
+            if (entry.getDirection() == Direction.credit) {
+                sumCredits.add(entry.getAmount());
+            } else {
+                sumDebits.add(entry.getAmount());
+            }
+        }
+
+        // Accounttype Debit Credit
+        // asset Increases Decreases
+        // expense Increases Decreases
+        // equity Decreases Increases
+        // liability Decreases Increases
+        // revenue Decreases Increases
+        AccountType type = found.get().getType();
+
+        if (type.equals(AccountType.liability) || type.equals(AccountType.equity) || type.equals(AccountType.revenue)) {
+            return sumCredits.subtract(sumDebits);
+        } else if (type.equals(AccountType.asset) || type.equals(AccountType.expense)) {
+            return sumDebits.subtract(sumCredits);
+        } else {
+            throw new LedgerException("ACCOUNT_TYPE_WRONG", 400, "Account with ID:" + accountId + "has bad type");
+        }
+    }
+
+    @Transactional
+    public List<EntryDTO> getEntryHistory(UUID accountId) {
+        Optional<Account> account = accountRepository.findById(accountId);
+        if (account.isEmpty()) {
+            throw new LedgerException("ACCOUNT_NOT_FOUND", 404, "Account not found with ID:" + accountId);
+        }
+        List<Entry> entries = entryRepository.findByAccount(account.get());
+        if (entries.isEmpty()) {
+            throw new LedgerException("ENTRIES_NOT_FOUND", 404, "Account with ID:" + accountId + "has no entries");
+        }
+        List<EntryDTO> entriesResponse= new ArrayList<>();
+        for (Entry entry : entries) {
+            entriesResponse.add(EntryDTO.from(entry));
+        }
+        return entriesResponse;
     }
 }

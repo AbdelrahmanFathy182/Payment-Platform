@@ -13,5 +13,5 @@ public record TransactionRequest(
         @NotBlank String idempotencyKey,
         @NotNull TransactionType type,
         @NotNull Currency currency,
-        @NotNull @Size(min = 2, max = 50) List<EntryRequest> entries) {
+        @NotNull @Size(min = 2, max = 50) List<EntryDTO> entries) {
 }
