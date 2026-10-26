@@ -104,3 +104,81 @@
 ## Codes to memorize first
 
 `200` `201` `204` `400` `401` `403` `404` `409` `422` `429` `500` `503`
+
+
+____
+____
+____
+____
+____
+____
+____
+____
+____
+____
+____
+____
+____
+____
+
+
+
+## MockMvc HTTP Status Matchers
+
+Use `.andExpect(status()...)` to verify the HTTP status returned by an endpoint.
+
+### Success — 2xx
+
+| MockMvc matcher | Code | Use case |
+|---|---:|---|
+| `status().isOk()` | 200 | Request succeeded |
+| `status().isCreated()` | 201 | Resource created, e.g. `POST /accounts` |
+| `status().isAccepted()` | 202 | Request accepted for asynchronous processing |
+| `status().isNoContent()` | 204 | Request succeeded with no response body |
+
+### Client errors — 4xx
+
+| MockMvc matcher | Code | Use case |
+|---|---:|---|
+| `status().isBadRequest()` | 400 | Invalid request, malformed JSON, validation failure |
+| `status().isUnauthorized()` | 401 | Missing or invalid authentication |
+| `status().isForbidden()` | 403 | Authenticated but not authorized |
+| `status().isNotFound()` | 404 | Resource or route not found |
+| `status().isMethodNotAllowed()` | 405 | HTTP method not supported by the endpoint |
+| `status().isConflict()` | 409 | Conflict with existing state, e.g. account-name conflict or already-reversed transaction |
+| `status().isUnprocessableEntity()` | 422 | Request understood but rejected by a business rule, e.g. idempotency key reused with different content |
+| `status().isTooManyRequests()` | 429 | Rate limit exceeded |
+
+### Server errors — 5xx
+
+| MockMvc matcher | Code | Use case |
+|---|---:|---|
+| `status().isInternalServerError()` | 500 | Unexpected server error |
+| `status().isServiceUnavailable()` | 503 | Service temporarily unavailable |
+| `status().isBadGateway()` | 502 | Server received an invalid response from an upstream server |
+| `status().isGatewayTimeout()` | 504 | Upstream server did not respond in time |
+
+### General status checks
+
+| MockMvc matcher | Meaning |
+|---|---|
+| `status().is2xxSuccessful()` | Any successful 2xx status |
+| `status().is3xxRedirection()` | Any 3xx redirect status |
+| `status().is4xxClientError()` | Any 4xx client-error status |
+| `status().is5xxServerError()` | Any 5xx server-error status |
+| `status().is(expectedCode)` | Exact numeric status code |
+
+### Example
+
+```java
+mockMvc.perform(get("/health"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("UP"));
+```
+
+### Guidelines
+
+- Prefer specific matchers such as `isCreated()` over broad matchers such as `is2xxSuccessful()`.
+- The application determines the status code; `MockMvc` verifies it.
+- Use status codes consistently with your API contract and exception handler.
+- Not every status needs a dedicated test for every endpoint. Focus on meaningful success and failure scenarios.
