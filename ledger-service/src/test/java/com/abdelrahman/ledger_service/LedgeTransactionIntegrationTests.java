@@ -1,5 +1,6 @@
 package com.abdelrahman.ledger_service;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -60,6 +61,21 @@ public class LedgeTransactionIntegrationTests extends LedgerDatabaseSetup {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.currency").value("EGP"))
         .andExpect(jsonPath("$.type").value("REVERSAL"));
+    }
+
+    @Test
+    public void shouldGetTransaction() throws Exception {
+        UUID testAccount1 = createAccount("asset");
+        UUID testAccount2 = createAccount("liability");
+
+        UUID txUuid = UUID.randomUUID();
+        tx.executeWithoutResult(s -> insertPayment(txUuid, testAccount1, testAccount2, 100, "PAYMENT"));
+     
+        mockMvc.perform(get("/api/v1/Transactions/{id}",txUuid))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(txUuid.toString()))
+        .andExpect(jsonPath("$.currency").value("EGP"))
+        .andExpect(jsonPath("$.type").value("PAYMENT"));
     }
 
 }
