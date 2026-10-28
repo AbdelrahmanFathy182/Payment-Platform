@@ -49,6 +49,10 @@ public class LedgerTransactionServiceTests extends LedgerDatabaseSetup {
         TransactionService.CreateResult result = service.createTransaction(request);
 
         assertTrue(result.created());
+        assertEquals(64, result.transaction().getIdempotencyHash().length());
+        assertEquals(result.transaction().getIdempotencyHash(), jdbcTemplate.queryForObject(
+                "SELECT idempotency_hash FROM transactions WHERE id = ?", String.class,
+                result.transaction().getId()));
         assertEquals(1, jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, result.transaction().getId()));
         assertEquals(3, jdbcTemplate.queryForObject(
@@ -184,6 +188,11 @@ public class LedgerTransactionServiceTests extends LedgerDatabaseSetup {
         TransactionService.ReversalResult reverseResult = service.reverseTransaction(result.transaction().getId(),
                 "testkey7");
         assertTrue(reverseResult.reversed());
+        assertEquals(64, reverseResult.transaction().getIdempotencyHash().length());
+        TransactionService.ReversalResult retryResult = service.reverseTransaction(result.transaction().getId(),
+                "testkey7");
+        assertFalse(retryResult.reversed());
+        assertEquals(reverseResult.transaction().getId(), retryResult.transaction().getId());
         assertEquals(1, jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, result.transaction().getId()));
 

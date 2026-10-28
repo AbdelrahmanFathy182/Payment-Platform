@@ -10,6 +10,8 @@ import com.abdelrahman.ledger_service.domain.Account;
 import com.abdelrahman.ledger_service.domain.Entry;
 import com.abdelrahman.ledger_service.domain.Transaction;
 import com.abdelrahman.ledger_service.domain.Enums.AccountStatus;
+import com.abdelrahman.ledger_service.domain.Enums.Currency;
+import com.abdelrahman.ledger_service.domain.Enums.TransactionType;
 import com.abdelrahman.ledger_service.dto.Direction;
 import com.abdelrahman.ledger_service.dto.EntryDTO;
 import com.abdelrahman.ledger_service.dto.TransactionRequest;
@@ -57,11 +59,34 @@ public class TransactionService {
         if (found.isEmpty()) {
             throw new LedgerException("TRANSACTION_NOT_FOUND", 404, "transaction id not found:" + TransactionId);
         }
-        Transaction reversedTransaction = found.get().getReverse(idempotencyKey);
         List<Entry> entries = entryRepository.findByTransaction(found.get());
         if(entries.isEmpty()){
             throw new LedgerException("ENTRIES_NOT_FOUND", 404, "no entries associated with this transaction found");
         }
+
+        List<EntryDTO> reversedEntryRequests = entries.stream()
+                .map(entry -> new EntryDTO(entry.getAccount().getId(),
+                        entry.getDirection() == Direction.credit ? Direction.debit : Direction.credit,
+                        entry.getAmount()))
+                .toList();
+        String idempotencyHash = hasher.sha256(buildTransactionString(
+                TransactionType.REVERSAL, found.get().getCurrency(), reversedEntryRequests));
+
+        Optional<Transaction> existing = transactionRepository.findByIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            Transaction existingTransaction = existing.get();
+            String existingHash = getIdempotencyHash(existingTransaction,
+                    entryRepository.findByTransaction(existingTransaction));
+            if (Objects.equals(idempotencyHash, existingHash)
+                    && existingTransaction.getTransaction() != null
+                    && TransactionId.equals(existingTransaction.getTransaction().getId())) {
+                return new ReversalResult(existingTransaction, false);
+            }
+            throw new LedgerException("CONFLICT", 409,
+                    "rejected request, same idempotency key but different hash");
+        }
+
+        Transaction reversedTransaction = found.get().getReverse(idempotencyKey, idempotencyHash);
         List<Entry> reversedEntries = new ArrayList<>();
         for (Entry entry : entries) {
             reversedEntries.add(entry.getReverse(reversedTransaction));
@@ -86,7 +111,7 @@ public class TransactionService {
         List<Entry> entries = new ArrayList<>();
         Transaction transaction = buildTransaction(request, entries);
 
-        Optional<Transaction> existing = findIdempotencyDuplicate(transaction, entries);
+        Optional<Transaction> existing = findIdempotencyDuplicate(transaction);
         if (existing.isPresent()) {
             return new CreateResult(existing.get(), false);
         }
@@ -135,14 +160,12 @@ public class TransactionService {
         }
     }
 
-    private Optional<Transaction> findIdempotencyDuplicate(Transaction request, List<Entry> requestEntries) {
+    private Optional<Transaction> findIdempotencyDuplicate(Transaction request) {
         Optional<Transaction> found = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
         if (found.isPresent()) {
             List<Entry> foundEntries = entryRepository.findByTransaction(found.get());
-            String requestString = buildTransactionString(request, requestEntries);
-            String foundString = buildTransactionString(found.get(), foundEntries);
-            String requestHash = hasher.sha256(requestString);
-            String foundHash = hasher.sha256(foundString);
+            String requestHash = request.getIdempotencyHash();
+            String foundHash = getIdempotencyHash(found.get(), foundEntries);
 
             if (Objects.equals(requestHash, foundHash)) {
                 return found;
@@ -158,27 +181,38 @@ public class TransactionService {
         entryRepository.saveAll(entries);
     }
 
-    private String buildTransactionString(Transaction transaction, List<Entry> entries) {
-        List<Entry> sortedEntries = entries.stream()
-                .sorted(Comparator.<Entry, UUID>comparing(e -> e.getAccount().getId()).thenComparing(Entry::getAmount))
+    private String getIdempotencyHash(Transaction transaction, List<Entry> entries) {
+        if (transaction.getIdempotencyHash() != null) {
+            return transaction.getIdempotencyHash();
+        }
+        List<EntryDTO> entryRequests = entries.stream()
+                .map(entry -> new EntryDTO(entry.getAccount().getId(), entry.getDirection(), entry.getAmount()))
                 .toList();
+        return hasher.sha256(buildTransactionString(transaction.getType(), transaction.getCurrency(), entryRequests));
+    }
 
+    private String buildTransactionString(TransactionType type, Currency currency, List<EntryDTO> entries) {
+        List<EntryDTO> sortedEntries = entries.stream()
+                .sorted(Comparator.<EntryDTO, UUID>comparing(EntryDTO::accountId).thenComparing(EntryDTO::amount))
+                .toList();
         StringBuilder TransactionString = new StringBuilder();
 
-        TransactionString.append(transaction.getType()).append("|");
-        TransactionString.append(transaction.getCurrency()).append("|");
-        for (Entry entry : sortedEntries) {
-            TransactionString.append(entry.getAccount().getId()).append("|");
-            TransactionString.append(entry.getAmount()).append("|");
-            TransactionString.append(entry.getDirection()).append("|");
+        TransactionString.append(type).append("|");
+        TransactionString.append(currency).append("|");
+        for (EntryDTO entry : sortedEntries) {
+            TransactionString.append(entry.accountId()).append("|");
+            TransactionString.append(entry.amount()).append("|");
+            TransactionString.append(entry.direction()).append("|");
         }
 
         return TransactionString.toString();
     }
 
     public Transaction buildTransaction(TransactionRequest request, List<Entry> entriesrefrence) {
+        String idempotencyHash = hasher.sha256(
+                buildTransactionString(request.type(), request.currency(), request.entries()));
         Transaction transaction = new Transaction(UUID.randomUUID(), null, request.currency(), request.type(),
-                request.idempotencyKey());
+                request.idempotencyKey(), idempotencyHash);
         try {
             for (EntryDTO entryRequest : request.entries()) {
                 Optional<Account> tempAccount = accountRepository.findById(entryRequest.accountId());

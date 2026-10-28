@@ -41,16 +41,20 @@ public class Transaction {
     @Column(name = "idempotency_key", nullable = false, updatable = false)
     private String idempotencyKey;
 
+    @Column(name = "idempotency_hash", nullable = false, updatable = false)
+    private String idempotencyHash;
+
     protected Transaction() {
     }
 
     public Transaction(UUID id, Transaction reversedTransaction, Currency currency, TransactionType transactionType,
-            String idempotencyKey) {
+            String idempotencyKey, String idempotencyHash) {
         this.currency = currency;
         this.id = id;
         this.idempotencyKey = idempotencyKey;
         this.reversesTransactionId = reversedTransaction;
         this.type = transactionType;
+        this.idempotencyHash = idempotencyHash;
     }
 
     public UUID getId() {
@@ -77,7 +81,13 @@ public class Transaction {
         return this.idempotencyKey;
     }
 
-    public Transaction getReverse(String idempotencyKey) {
-        return new Transaction(UUID.randomUUID(), this, this.currency, TransactionType.REVERSAL, idempotencyKey);
+    public String getIdempotencyHash() {
+        return this.idempotencyHash;
     }
+
+    public Transaction getReverse(String idempotencyKey, String idempotencyHash) {
+        return new Transaction(UUID.randomUUID(), this, this.currency, TransactionType.REVERSAL, idempotencyKey,
+                idempotencyHash);
+    }
+
 }
