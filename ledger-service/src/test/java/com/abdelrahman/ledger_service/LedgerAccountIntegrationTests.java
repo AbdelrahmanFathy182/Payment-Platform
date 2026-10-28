@@ -83,8 +83,26 @@ public class LedgerAccountIntegrationTests extends LedgerDatabaseSetup {
                                 .andExpect(jsonPath("$.currency").value("EGP"));
 
         }
-        @Test 
-        void shouldGetEntryHistory()throws Exception{
-                
+
+        @Test
+        void shouldGetEntryHistory() throws Exception {
+                UUID testAccount1 = createAccount("asset");
+                UUID testAccount2 = createAccount("liability");
+
+                UUID txUuid1 = UUID.randomUUID();
+                UUID txUuid2 = UUID.randomUUID();
+                UUID txUuid3 = UUID.randomUUID();
+
+                tx.executeWithoutResult(s -> insertPayment(txUuid1, testAccount1, testAccount2, 100, "PAYMENT"));
+                tx.executeWithoutResult(s -> insertPayment(txUuid2, testAccount1, testAccount2, 200, "PAYMENT"));
+                tx.executeWithoutResult(s -> insertPayment(txUuid3, testAccount2, testAccount1, 50, "PAYMENT"));
+
+                mockMvc.perform(get("/api/v1/accounts/{id}/entries", testAccount1))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$").isArray())
+                                .andExpect(jsonPath("$.length()").value(3))
+                                .andExpect(jsonPath("$[0].accountId").value(testAccount1.toString()))
+                                .andExpect(jsonPath("$[1].accountId").value(testAccount1.toString()))
+                                .andExpect(jsonPath("$[2].accountId").value(testAccount1.toString()));
         }
 }

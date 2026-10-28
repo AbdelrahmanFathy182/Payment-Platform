@@ -39,7 +39,7 @@ public class TransactionController {
         return ResponseEntity.status(200).body(body);    
     }
     @GetMapping("/{id}")
-    public ResponseEntity<TransactionResponse> getMethodName(@PathVariable  UUID id) {
+    public ResponseEntity<TransactionResponse> getTransaction(@PathVariable  UUID id) {
         TransactionService.GetResult result= service.getTransaction(id);
         TransactionResponse body = TransactionResponse.from(result.transaction());
         return ResponseEntity.status(200).body(body);
