@@ -12,10 +12,7 @@ import com.abdelrahman.ledger_service.service.AccountService;
 import com.abdelrahman.ledger_service.dto.*;
 import org.springframework.web.bind.annotation.GetMapping;
 
-import com.abdelrahman.ledger_service.domain.Enums.AccountType;
-import com.abdelrahman.ledger_service.domain.Enums.Currency;
 import java.util.List;
-import java.math.BigDecimal;
 import java.util.UUID;
 
 @RestController

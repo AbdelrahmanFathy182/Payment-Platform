@@ -23,26 +23,28 @@ public class LedgeTransactionIntegrationTests extends LedgerDatabaseSetup {
 
     @Test
     public void shouldPostTransaction() throws Exception {
+    UUID testAccount1 = createAccount("asset");
+    UUID testAccount2 = createAccount("liability");
         mockMvc.perform(post("/api/v1/Transactions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                             {
-                            "idempotencyKey":"key",
+                            "idempotencyKey":"key2",
                             "type": "TOPUP",
                             "currency": "EGP",
                             "entries":[
                             {
-                            "accountId":"00000000-0000-0000-0000-000000000001",
+                            "accountId":"%S",
                             "direction": "credit",
                             "amount": 100
                             },
                             {
-                            "accountId":"00000000-0000-0000-0000-000000000002",
+                            "accountId":"%S",
                             "direction": "debit",
                             "amount": 100
                             }]
                             }
-                        """))
+                        """.formatted(testAccount1,testAccount2)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.currency").value("EGP"))
                 .andExpect(jsonPath("$.type").value("TOPUP"));

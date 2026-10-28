@@ -7,7 +7,6 @@ import jakarta.transaction.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import com.abdelrahman.ledger_service.domain.Entry;
-import com.abdelrahman.ledger_service.domain.Enums.Currency;
 
 import java.util.ArrayList;
 import java.util.List;
