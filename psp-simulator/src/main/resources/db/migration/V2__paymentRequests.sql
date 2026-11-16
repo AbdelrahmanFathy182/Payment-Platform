@@ -7,3 +7,6 @@ CREATE TABLE payment_requests (
     outcome          JSONB NOT NULL,                  -- original response, replayed on retry
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 5. Index on the foreign key
+CREATE INDEX idx_payment_requests_payment_id ON payment_requests (payment_id);

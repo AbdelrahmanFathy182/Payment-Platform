@@ -1,211 +1,141 @@
-# PSP Simulator --- Scope & Behavior Reference
+# PSP Simulator — Scope & Behavior Reference
 
-**Purpose:** A concise functional reference for designing the PSP
-Simulator when implementation begins. This records the scope and
-decisions agreed so far; it is not a technical architecture or
-implementation plan.
+**Purpose:** Authoritative reference for the PSP Simulator. It records the
+agreed scope and behavior only; it is not an implementation plan.
+
+**Guiding principle:** The simulator is a deliberately minimal fake payment
+provider called by a separate Orchestrator. Keep it focused on behaving like
+an external PSP from the Orchestrator's point of view. Do not expand scope.
 
 ## 1. Role and boundaries
 
-The PSP Simulator represents an **external payment service provider
-(PSP)** that the Orchestrator communicates with.
+The Orchestrator coordinates the platform's payment workflow and decides what
+to do next. The PSP Simulator simulates provider-side decisions, failures, and
+records. The Ledger Service records the platform's financial activity
+separately.
 
--   The **Orchestrator** coordinates the platform's payment workflow and
-    decides what to do next.
--   The **PSP Simulator** simulates provider-side payment decisions,
-    processing, failures, and records.
--   The **Ledger Service** records the platform's financial activity
-    separately.
--   The simulator does not contact real banks or card networks, move
-    real money, or manage the platform's merchants, customers, or ledger
-    accounts.
--   The PSP Simulator does not initiate calls to the Orchestrator.
+- The simulator owns **provider-side state and provider IDs only**.
+- No retries, fees, refunds, or ledger IDs.
+- The simulator does not contact real banks or card networks, move real money,
+  or manage merchants, customers, or ledger accounts.
+- The simulator does not initiate calls to the Orchestrator.
 
-## 2. Core capabilities in scope
+## 2. Operations
 
-The simulator should support:
+1. **Authorize** a payment.
+2. **Capture** an authorized payment — full amount only.
+3. **Void** an authorized payment.
+4. **Query** the current state of a payment.
 
-1.  **Authorize** a payment: approve or decline an attempted payment.
-2.  **Capture** an approved authorization: complete the payment for the
-    full authorized amount.
-3.  **Void** an authorization: cancel it before capture.
-4.  **Check status:** let the Orchestrator ask what state the PSP
-    currently records.
-5.  **Reconciliation:** return the PSP's records for a requested time
-    window so the Orchestrator can compare them with its own records and
-    recover missed outcomes.
+Capture and void use the simulator-generated provider ID in the path.
+`Idempotency-Key` is required on authorize, capture, and void.
 
-## 3. Payment states
+## 3. Payment states and transitions
 
-The agreed main states are:
+States: `PENDING`, `AUTHORIZED`, `DECLINED`, `CAPTURED`, `VOIDED`.
 
-  -----------------------------------------------------------------------
-  State                               Meaning
-  ----------------------------------- -----------------------------------
-  `PROCESSING`                        The PSP is still handling an
-                                      operation. The Orchestrator can
-                                      observe this state.
+Allowed transitions:
 
-  `AUTHORIZED`                        The authorization was approved. It
-                                      may later be captured, voided, or
-                                      expire.
+- `PENDING` → `AUTHORIZED`
+- `AUTHORIZED` → `CAPTURED`
+- `AUTHORIZED` → `VOIDED`
 
-  `DECLINED`                          The authorization was refused.
+All other transitions are terminal. An invalid transition returns HTTP 409.
 
-  `CAPTURED`                          The full authorized amount was
-                                      successfully captured.
+`PENDING` always resolves to `AUTHORIZED`. There are no timers.
 
-  `VOIDED`                            An authorization was cancelled
-                                      before capture.
+## 4. Idempotency
 
-  `EXPIRED`                           An authorization reached its expiry
-                                      without being captured or voided.
-  -----------------------------------------------------------------------
+- The `Idempotency-Key` header is required on authorize, capture, and void.
+- The same key used again replays the stored outcome with no new side effects.
+- The same key used with a different operation returns HTTP 409.
+- A missing key returns HTTP 400.
 
-A timeout, lost response, or temporary failure is **not automatically a
-payment state**. These describe a request or communication outcome. For
-example, the PSP may have captured a payment even though the
-Orchestrator did not receive the response.
+## 5. Scenario controls (`X-Simulate`)
 
-## 4. Agreed payment behavior
+Absent header means normal success. Supported values:
 
--   **Immediate or delayed capture:** The Orchestrator may capture soon
-    after authorization or leave the authorization open and decide
-    later.
--   **Full capture only:** Partial captures and multiple captures are
-    out of scope. An authorization for 1,000 must be captured as 1,000
-    in one operation.
--   **Void before capture:** An authorization may be voided while it is
-    still eligible for voiding.
--   **Authorization expiry:** Uncaptured authorizations expire
-    automatically. The expiry period should be configurable for testing.
--   **Expired means expired:** An expired authorization cannot
-    subsequently be captured. `EXPIRED` is distinct from `VOIDED`.
--   **Invalid operations are rejected:** For example, capturing a
-    declined, voided, expired, or nonexistent payment is rejected
-    without changing its state. The same applies to voiding a captured
-    payment.
--   **No real settlement or payout:** `CAPTURED` means the simulator
-    recorded a successful capture; it does not mean funds have reached a
-    merchant bank account.
+- `DECLINE` — HTTP 200 with status `DECLINED` and a reason. This is a business
+  result, not an error. Authorize only.
+- `TEMP_FAILURE` — HTTP 503 before anything is stored. A retry is a fresh
+  attempt.
+- `RESPONSE_LOST` — apply and commit first, then stall past the client timeout
+  (duration configured via a property). Stall after commit, never holding a
+  lock.
+- `PENDING:<n>` — authorize returns `PENDING`; each query decrements the
+  counter; at 0 the state becomes `AUTHORIZED`. No timers. Authorize only.
+- `DELAY:<ms>` — fixed latency.
 
-## 5. Processing, failures, and uncertain outcomes
+An optional random failure-rate property exists; default is `0` and tests do
+not use it.
 
-The simulator should be able to represent these different situations:
+`DECLINE` and `PENDING` apply to authorize only. There are no scenarios on
+query.
 
--   **Normal response:** The PSP finishes the operation and returns its
-    result.
--   **Still processing:** The PSP reports `PROCESSING`; the Orchestrator
-    can check again later.
--   **Temporary failure before processing:** The operation did not
-    happen. A retry can be made.
--   **Successful operation with lost response:** The operation happened,
-    but the Orchestrator did not receive the result.
--   **Delayed response/processing:** The operation takes longer than
-    usual.
+## 6. Errors
 
-These cases must remain distinguishable. In particular, a timeout or
-lost response must not be treated as proof that the operation failed.
+| Cause | Status |
+| --- | --- |
+| Bad request / missing idempotency key | 400 |
+| Unknown ID, or unknown caller key on query | 404 |
+| Invalid transition, or key reused with a different operation | 409 |
+| Temporary failure (`TEMP_FAILURE`) | 503 |
 
-### Orchestrator waiting and recovery
+## 7. Query
 
--   The Orchestrator normally waits for the PSP's response to an
-    operation.
--   If the PSP reports `PROCESSING`, the Orchestrator checks again after
-    a wait.
--   The Orchestrator checks a limited number of times rather than
-    waiting indefinitely.
--   If it still cannot establish the outcome, it treats the payment as
-    **unresolved from its own perspective**. This is not an additional
-    PSP payment state.
--   It can recover later through another status check or reconciliation.
+- Query by provider ID or by caller key.
+- Returns the current state.
+- An unknown caller key returns HTTP 404.
 
-## 6. Safe retries
+## 8. Database
 
-**Agreed rule: retrying the same operation must not repeat its effect.**
+Schema is already designed (see the actual Flyway migrations).
 
-If the PSP already processed an operation but its response was lost, a
-retry of that same operation returns the original outcome rather than
-processing it again.
+`payments_model`: `id UUID`, `state`, `amount BIGINT` (minor units),
+`currency`, `decline_reason`, `created_at`, `updated_at`,
+`pending_queries_remaining`.
 
-A repeated request that reuses the same request identity but changes the
-operation's details must be rejected. A genuinely new operation must not
-be mistaken for a retry of an earlier one.
+`payment_requests`: `id`, `idempotency_key` (unique), `operation`,
+`payment_id` (NOT NULL, FK), `outcome` (JSONB, NOT NULL), `created_at`.
 
-## 7. Failure and test controls
+Database rules:
 
-The simulator should support both:
+- Triggers raise SQLSTATE `PS409` for illegal state transitions and illegal
+  initial states, and maintain `updated_at`.
+- A check requires `pending_queries_remaining = 0` unless the state is
+  `PENDING`; resolution must update both in one statement.
+- A duplicate idempotency key raises SQLSTATE `23505`.
 
--   **General configurable behavior**, such as rates of temporary
-    failures or delayed responses.
--   **Deliberately triggered scenarios**, so a specific case can be
-    reproduced on demand.
+## 9. Concurrency
 
-Scenarios should cover authorization, capture, and void where
-applicable, including failures before processing and successful
-operations whose responses are lost. Capture should also be able to
-experience temporary failures.
+- Use `SELECT … FOR UPDATE` on the payment row.
+- The unique key decides duplicate races.
+- The loser rolls back and replays the stored outcome.
+- Service maps `PS409` → HTTP 409 and `23505` → replay.
 
-## 8. Reconciliation and provider records
+## 10. Explicitly out of scope
 
-Reconciliation should return the PSP's actual records for the requested
-time window, rather than only returning records for payments the
-Orchestrator already knows to ask about.
+- Real bank, card-network, or payment-provider integration.
+- Actual movement, clearing, settlement, or payout of money.
+- Refunds, partial captures, multiple captures.
+- Authorization expiry.
+- Reconciliation endpoints.
+- Retries, fees, or ledger IDs in provider responses.
+- Multiple provider profiles or provider selection.
+- Merchant, customer, or Ledger account management.
+- The PSP initiating requests to the Orchestrator.
+- A monitoring or administration dashboard.
 
-The records should make it possible for the Orchestrator to discover and
-investigate situations such as:
+## 11. Implementation order
 
--   A capture or authorization that succeeded but whose response was
-    lost.
--   An authorization that remains uncaptured.
--   A decline or void that the Orchestrator did not learn about.
--   A payment whose state changed while the Orchestrator was
-    unavailable.
-
-The simulator must retain its provider-side records so status checks and
-reconciliation can support recovery after an Orchestrator or simulator
-restart.
-
-## 9. Explicitly out of scope
-
--   Real bank, card-network, or payment-provider integration.
--   Actual movement, clearing, settlement, or payout of money.
--   Refunds.
--   Partial capture or multiple captures for one authorization.
--   Multiple provider profiles or provider selection.
--   Merchant, customer, or Ledger account management.
--   The PSP initiating requests to the Orchestrator.
--   A monitoring or administration dashboard.
-
-## 10. Decisions still open
-
-These were not settled and should be decided only when they matter to
-the design:
-
--   Which currencies the first version should support.
--   The exact authorization expiry duration and how it is configured.
--   The exact waiting interval and retry/check limit used by the
-    Orchestrator.
--   The precise set of failure-rate controls and which scenarios can be
-    triggered for each operation.
-
-Do not let these open details expand the agreed scope unnecessarily.
-
-## 11. Suggested implementation order
-
-Build and verify the normal business flow before adding failure
-complexity:
-
-1.  Authorization, including approval and decline.
-2.  Full capture and void.
-3.  Status checks and valid state transitions.
-4.  Safe retries and duplicate-request behavior.
-5.  Authorization expiry.
-6.  Processing delays, temporary failures, and lost responses.
-7.  Reconciliation and recovery scenarios.
-8.  Configurable failure rates and deliberate scenario controls.
-
-**Guiding principle:** Keep the simulator focused on behaving like an
-external PSP from the Orchestrator's point of view. It should be
-realistic enough to exercise payment lifecycle, failure handling,
-retries, and recovery without simulating the entire banking system.
+1. Fix test DB access and verify the DB rules.
+2. Define the API contract (DTOs, error mapping, `X-Simulate` parsing).
+3. Authorize: success, decline, duplicate replay, key mismatch, temporary
+   failure.
+4. Query by ID and key, including the `PENDING` countdown.
+5. Capture.
+6. Void.
+7. `DELAY` and `RESPONSE_LOST`.
+8. HTTP-level concurrency tests.
+9. Dockerfile and Compose service.
+10. Read-only review of the Orchestrator's PSP client against this contract.
