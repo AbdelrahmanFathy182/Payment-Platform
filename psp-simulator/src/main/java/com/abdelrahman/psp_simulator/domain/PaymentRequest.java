@@ -3,7 +3,7 @@ package com.abdelrahman.psp_simulator.domain;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.abdelrahman.psp_simulator.domain.Enums.Operation;
+import com.abdelrahman.psp_simulator.domain.enums.Operation;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,7 +21,7 @@ import org.hibernate.annotations.ColumnTransformer;
 
 @Entity
 @Table(name = "payment_requests")
-public class request {
+public class PaymentRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -37,7 +37,7 @@ public class request {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "payment_id", nullable = false, updatable = false)
-    private payment payment;
+    private Payment payment;
 
     @ColumnTransformer(write = "CAST(? AS jsonb)")
     @Column(name = "outcome", columnDefinition = "jsonb", nullable = false, updatable = false)
@@ -46,10 +46,10 @@ public class request {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
-    protected request() {
+    protected PaymentRequest() {
     }
 
-    public request(String idempotencyKey, Operation operation, payment payment, String outcome) {
+    public PaymentRequest(String idempotencyKey, Operation operation, Payment payment, String outcome) {
         this.idempotencyKey = idempotencyKey;
         this.operation = operation;
         this.payment = payment;
@@ -68,7 +68,7 @@ public class request {
         return operation;
     }
 
-    public payment getPayment() {
+    public Payment getPayment() {
         return payment;
     }
 

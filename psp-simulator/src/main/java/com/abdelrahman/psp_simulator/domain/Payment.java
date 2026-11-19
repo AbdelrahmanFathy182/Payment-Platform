@@ -3,8 +3,8 @@ package com.abdelrahman.psp_simulator.domain;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.abdelrahman.psp_simulator.domain.Enums.Currency;
-import com.abdelrahman.psp_simulator.domain.Enums.PaymentState;
+import com.abdelrahman.psp_simulator.domain.enums.Currency;
+import com.abdelrahman.psp_simulator.domain.enums.PaymentState;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,7 +17,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "payments_model")
-public class payment {
+public class Payment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -47,14 +47,14 @@ public class payment {
     @Column(name = "pending_queries_remaining", nullable = false)
     private int pendingQueriesRemaining;
 
-    protected payment() {
+    protected Payment() {
     }
 
-    public payment(long amount, Currency currency) {
+    public Payment(long amount, Currency currency) {
         this(PaymentState.PENDING, amount, currency, null, 0);
     }
 
-    public payment(PaymentState state, long amount, Currency currency, String declineReason,
+    public Payment(PaymentState state, long amount, Currency currency, String declineReason,
             int pendingQueriesRemaining) {
         this.state = state;
         this.amount = amount;
