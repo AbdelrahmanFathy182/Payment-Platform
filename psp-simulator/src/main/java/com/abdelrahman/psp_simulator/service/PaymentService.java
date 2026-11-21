@@ -58,7 +58,7 @@ public class PaymentService {
         requireKey(idempotencyKey);
         simulationExecutor.prepare(simulation, Operation.AUTHORIZE);
 
-        Optional<PaymentResponse> replay = replay(idempotencyKey, Operation.AUTHORIZE);
+        Optional<PaymentResponse> replay = replay(idempotencyKey, Operation.AUTHORIZE, true);
         if (replay.isPresent()) {
             return replay.get();
         }
@@ -82,7 +82,7 @@ public class PaymentService {
             simulationExecutor.afterCommit(simulation);
             return response;
         } catch (DataIntegrityViolationException e) {
-            return replay(idempotencyKey, Operation.AUTHORIZE).orElseThrow(() -> e);
+            return replay(idempotencyKey, Operation.AUTHORIZE, true).orElseThrow(() -> e);
         } catch (JpaSystemException e) {
             throw translate(e);
         }
@@ -127,7 +127,7 @@ public class PaymentService {
         requireKey(idempotencyKey);
         simulationExecutor.prepare(simulation, operation);
 
-        Optional<PaymentResponse> replay = replay(idempotencyKey, operation);
+        Optional<PaymentResponse> replay = replay(idempotencyKey, operation, true);
         if (replay.isPresent()) {
             return replay.get();
         }
@@ -137,11 +137,12 @@ public class PaymentService {
                 Payment payment = payments.findByIdForUpdate(paymentId)
                         .orElseThrow(PspException::paymentNotFound);
 
+                decrementPending(payment);
+
                 // The trigger allows a no-op state update, so terminal states must
                 // be rejected here. A same-key race is replayed instead of rejected.
                 if (payment.getState() != PaymentState.AUTHORIZED) {
-                    return replay(idempotencyKey, operation)
-                            .orElseThrow(PspException::invalidTransition);
+                    return null;
                 }
 
                 payment.setState(target);
@@ -153,10 +154,15 @@ public class PaymentService {
                 return result;
             });
 
+            if (response == null) {
+                return replay(idempotencyKey, operation, false)
+                        .orElseThrow(PspException::invalidTransition);
+            }
+
             simulationExecutor.afterCommit(simulation);
             return response;
         } catch (DataIntegrityViolationException e) {
-            return replay(idempotencyKey, operation).orElseThrow(() -> e);
+            return replay(idempotencyKey, operation, true).orElseThrow(() -> e);
         } catch (JpaSystemException e) {
             throw translate(e);
         }
@@ -167,25 +173,44 @@ public class PaymentService {
             Payment payment = payments.findByIdForUpdate(paymentId)
                     .orElseThrow(PspException::paymentNotFound);
 
-            if (payment.getState() == PaymentState.PENDING && payment.getPendingQueriesRemaining() > 0) {
-                int remaining = payment.getPendingQueriesRemaining() - 1;
-                payment.setPendingQueriesRemaining(remaining);
-                if (remaining == 0) {
-                    payment.setState(PaymentState.AUTHORIZED);
-                }
-                payments.saveAndFlush(payment);
-            }
+            decrementPending(payment);
             return PaymentResponse.from(payment);
         });
     }
 
-    private Optional<PaymentResponse> replay(String idempotencyKey, Operation expected) {
-        return requests.findByIdempotencyKey(idempotencyKey).map(request -> {
-            if (request.getOperation() != expected) {
-                throw PspException.idempotencyKeyReused();
+    private void decrementPending(Payment payment) {
+        if (payment.getState() == PaymentState.PENDING && payment.getPendingQueriesRemaining() > 0) {
+            int remaining = payment.getPendingQueriesRemaining() - 1;
+            payment.setPendingQueriesRemaining(remaining);
+            if (remaining == 0) {
+                payment.setState(PaymentState.AUTHORIZED);
             }
-            return decode(request.getOutcome());
+            payments.saveAndFlush(payment);
+        }
+    }
+
+    private void touchPendingByPaymentId(UUID paymentId) {
+        if (paymentId == null) {
+            return;
+        }
+        tx.execute(status -> {
+            payments.findByIdForUpdate(paymentId).ifPresent(this::decrementPending);
+            return null;
         });
+    }
+
+    private Optional<PaymentResponse> replay(String idempotencyKey, Operation expected, boolean touch) {
+        Optional<PaymentRequest> request = requests.findByIdempotencyKey(idempotencyKey);
+        if (request.isEmpty()) {
+            return Optional.empty();
+        }
+        if (request.get().getOperation() != expected) {
+            throw PspException.idempotencyKeyReused();
+        }
+        if (touch) {
+            touchPendingByPaymentId(request.get().getPaymentId());
+        }
+        return Optional.of(decode(request.get().getOutcome()));
     }
 
     private void requireKey(String idempotencyKey) {

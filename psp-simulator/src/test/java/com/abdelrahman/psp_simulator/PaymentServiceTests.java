@@ -110,6 +110,17 @@ public class PaymentServiceTests extends pspDatabaseSetup {
     }
 
     @Test
+    void authorizeReplayDecrementsPendingPayment() {
+        PaymentResponse original = authorize("K1", Simulation.parse("PENDING:2"));
+
+        PaymentResponse replay = authorize("K1", none());
+
+        assertEquals(original.id(), replay.id());
+        assertEquals(PaymentState.PENDING, replay.state());
+        assertEquals(1, pendingQueries(original.id()));
+    }
+
+    @Test
     void replayCaptureReturnsStoredOutcome() {
         UUID id = authorize("K1", none()).id();
         PaymentResponse capture = service.capture(id, "K2", none());
@@ -170,6 +181,29 @@ public class PaymentServiceTests extends pspDatabaseSetup {
 
         assertEquals(PspException.INVALID_TRANSITION, e.getCode());
         assertEquals(409, e.getStatus().value());
+        assertEquals(1, pendingQueries(id));
+    }
+
+    @Test
+    void capturePendingResolvesAndProceedsWhenCounterReachesZero() {
+        UUID id = authorize("K1", Simulation.parse("PENDING:1")).id();
+
+        PaymentResponse response = service.capture(id, "K2", none());
+
+        assertEquals(PaymentState.CAPTURED, response.state());
+        assertEquals(PaymentState.CAPTURED, payments.findById(id).orElseThrow().getState());
+        assertEquals(0, pendingQueries(id));
+    }
+
+    @Test
+    void voidPendingResolvesAndProceedsWhenCounterReachesZero() {
+        UUID id = authorize("K1", Simulation.parse("PENDING:1")).id();
+
+        PaymentResponse response = service.voidPayment(id, "K2", none());
+
+        assertEquals(PaymentState.VOIDED, response.state());
+        assertEquals(PaymentState.VOIDED, payments.findById(id).orElseThrow().getState());
+        assertEquals(0, pendingQueries(id));
     }
 
     @Test
