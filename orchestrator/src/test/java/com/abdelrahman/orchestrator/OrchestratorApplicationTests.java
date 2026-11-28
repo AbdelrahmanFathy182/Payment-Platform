@@ -1,10 +1,8 @@
 package com.abdelrahman.orchestrator;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class OrchestratorApplicationTests {
+class OrchestratorApplicationTests extends OrchestratorDatabaseSetup {
 
 	@Test
 	void contextLoads() {
