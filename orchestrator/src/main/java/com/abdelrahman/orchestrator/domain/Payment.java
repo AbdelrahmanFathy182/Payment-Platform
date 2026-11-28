@@ -73,8 +73,9 @@ public class Payment {
     @Column(name = "needs_attention", nullable = false)
     private boolean needsAttention;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "terminal_outcome")
-    private String terminalOutcome;
+    private TerminalOutcome terminalOutcome;
 
     @Column(name = "correlation_id", nullable = false)
     private UUID correlationId;
@@ -84,5 +85,65 @@ public class Payment {
     private String responseSnapshot;
 
     protected Payment() {
+    }
+
+    public Payment(
+            UUID id,
+            String clientId,
+            String clientKey,
+            String requestHash,
+            long amountMinor,
+            String currency,
+            String payerRef,
+            String merchantRef,
+            long feeMinor,
+            long merchantAmountMinor,
+            UUID correlationId,
+            Instant deadlineAt,
+            Instant nextActionAt) {
+        this.id = id;
+        this.clientId = clientId;
+        this.clientKey = clientKey;
+        this.requestHash = requestHash;
+        this.amountMinor = amountMinor;
+        this.currency = currency;
+        this.payerRef = payerRef;
+        this.merchantRef = merchantRef;
+        this.feeMinor = feeMinor;
+        this.merchantAmountMinor = merchantAmountMinor;
+        this.correlationId = correlationId;
+        this.deadlineAt = deadlineAt;
+        this.nextActionAt = nextActionAt;
+        this.step = PaymentStage.RECEIVED;
+        this.stepStatus = StepStatus.PENDING;
+        this.currentAttempt = 1;
+        this.needsAttention = false;
+    }
+
+    public PaymentState state() {
+        return new PaymentState(step, stepStatus, terminalOutcome);
+    }
+
+    public boolean needsAttention() {
+        return needsAttention;
+    }
+
+    public int currentAttempt() {
+        return currentAttempt;
+    }
+
+    void startNextAttempt() {
+        currentAttempt++;
+    }
+
+    void applyState(PaymentState state) {
+        this.step = state.stage();
+        this.stepStatus = state.status();
+        this.terminalOutcome = state.outcome();
+        if (state.outcome() == TerminalOutcome.NEEDS_ATTENTION) {
+            this.needsAttention = true;
+        } else if (state.status() == StepStatus.DONE || state.status() == StepStatus.FAILED) {
+            this.needsAttention = false;
+        }
     }
 }
